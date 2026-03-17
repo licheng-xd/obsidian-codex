@@ -5,6 +5,7 @@ import {
   Notice,
   WorkspaceLeaf
 } from "obsidian";
+import { shouldSubmitFromKeydown } from "./chat-input";
 import { buildContextPayload, type ContextInput } from "./context-builder";
 import { formatContextSummary } from "./context-summary";
 import { CODEX_ICON } from "./codex-icon";
@@ -82,7 +83,16 @@ export class ChatView extends ItemView {
 
     this.registerDomEvent(this.inputEl, "focus", () => this.updateContextSummary());
     this.registerDomEvent(this.inputEl, "keydown", (event: KeyboardEvent) => {
-      if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+      if (
+        shouldSubmitFromKeydown({
+          key: event.key,
+          metaKey: event.metaKey,
+          ctrlKey: event.ctrlKey,
+          shiftKey: event.shiftKey,
+          altKey: event.altKey,
+          isComposing: event.isComposing
+        })
+      ) {
         event.preventDefault();
         void this.handleSend();
       }

@@ -21,7 +21,9 @@
   border-radius: 10px;
   color: var(--text-muted);
   font-size: var(--font-ui-smaller);
+  line-height: 1.5;
   padding: 10px 12px;
+  white-space: pre-line;
 }
 
 .obsidian-codex-messages {

@@ -11,5 +11,5 @@ export function formatContextSummary(input: ContextSummaryInput): string {
     ? `${input.selectionText.length} chars selected`
     : "No selection";
 
-  return `Vault root: ${vaultRootLabel} / Current note: ${noteLabel} / ${selectionLabel}`;
+  return `Vault root: ${vaultRootLabel}\nCurrent note: ${noteLabel}\nSelection: ${selectionLabel}`;
 }
