@@ -131,6 +131,27 @@
 - Files created/modified:
   - `progress.md` (updated)
 
+### Phase 4: Review Follow-Up Fixes
+- **Status:** complete
+- **Updated:** 2026-03-17 13:57 CST
+- Actions taken:
+  - Replaced the module-level Codex client with an injected `CodexService` instance so the current `codexPath` setting is honored.
+  - Removed the temporary `@modelcontextprotocol/sdk` dependency and replaced it with a local ambient declaration shim.
+  - Debounced `selectionchange` updates in the chat view to reduce redundant context-summary work.
+  - Verified that `@openai/codex-sdk` remains bundled into `main.js`, so no extra esbuild external handling is needed.
+- Files created/modified:
+  - `src/codex-service.ts` (updated)
+  - `src/main.ts` (updated)
+  - `src/chat-view.ts` (updated)
+  - `src/modelcontextprotocol-sdk.d.ts` (created)
+  - `tests/codex-service.test.ts` (updated)
+  - `package.json` (updated)
+  - `package-lock.json` (updated)
+  - `tsconfig.json` (updated)
+  - `esbuild.config.mjs` (updated)
+  - `findings.md` (updated)
+  - `progress.md` (updated)
+
 ## Test Results
 | Test | Input | Expected | Actual | Status |
 |------|-------|----------|--------|--------|
@@ -149,6 +170,11 @@
 | Parallel batch full test | `npm test` | Context builder + Codex service suites both pass | 2 test files, 10 tests passed | ✓ |
 | Parallel batch typecheck | `npm run typecheck` | Chat view integration compiles | Succeeded | ✓ |
 | Parallel batch build | `npm run build` | Plugin bundle regenerates with chat view | Succeeded | ✓ |
+| Review follow-up targeted test | `npm run test -- tests/codex-service.test.ts` | Injected service and path-aware client logic pass | 8 tests passed | ✓ |
+| Review follow-up full test | `npm test` | Repository suite still passes after service refactor | 2 test files, 13 tests passed | ✓ |
+| Review follow-up typecheck | `npm run typecheck` | Shim-based SDK typing remains valid without MCP dependency | Succeeded | ✓ |
+| Review follow-up build | `npm run build` | Refactored service and chat view still bundle correctly | Succeeded | ✓ |
+| Bundle check | `rg -n \"@openai/codex-sdk\" main.js` | No runtime import remains in built artifact | No matches | ✓ |
 
 ## Error Log
 | Timestamp | Error | Attempt | Resolution |

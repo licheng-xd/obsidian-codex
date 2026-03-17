@@ -49,7 +49,10 @@
 | No existing project files are present in the workspace | Plan to scaffold the plugin after design approval |
 | `executing-plans` requires worktree isolation, but the workspace started without a git repository or initial commit | Initialized a repository baseline first, then created a dedicated feature worktree before implementation |
 | The implementation plan's initial `tsconfig.json` combined `include: ["tests/**/*.ts"]` with `rootDir: "src"` and `outDir: "."`, which breaks `tsc --noEmit` | Adjusted the real scaffold to use `rootDir: "."` and no `outDir`, keeping test files type-checkable |
-| `@openai/codex-sdk@0.114.0`'s published type declarations require `@modelcontextprotocol/sdk/types.js`, but the dependency is not pulled into this app's type-checking environment automatically | Added `@modelcontextprotocol/sdk` as an explicit app dependency so `npm run typecheck` remains green once the SDK is imported |
+| `@openai/codex-sdk@0.114.0`'s published type declarations require `@modelcontextprotocol/sdk/types.js`, but the dependency is not pulled into this app's type-checking environment automatically | Replaced the missing third-party declaration with a local ambient type shim so `npm run typecheck` stays green without shipping an unused MCP dependency |
+| The module-level `Codex` client prevented the settings-driven `codexPath` from ever taking effect after plugin load | Replaced the singleton with an injected `CodexService` instance that reads the current path from plugin settings and recreates the client when the path changes |
+| `@modelcontextprotocol/sdk` was only present to satisfy missing third-party types, not because the plugin uses MCP directly | Replaced the package dependency with a local ambient type shim for `@modelcontextprotocol/sdk/types.js` |
+| Bundling behavior for `@openai/codex-sdk` needed confirmation before changing esbuild externals | Kept the SDK bundled: Obsidian plugins ship `main.js` as the runtime artifact, and `main.js` no longer contains a runtime import for `@openai/codex-sdk` after build |
 
 ## Resources
 - Reference repository: `https://github.com/YishenTu/claudian`

@@ -1,14 +1,18 @@
 import { Notice, Plugin } from "obsidian";
 import { ChatView, CODEX_CHAT_VIEW_TYPE } from "./chat-view";
-import { probeCodexCli } from "./codex-service";
+import { CodexService, probeCodexCli } from "./codex-service";
 import { type PluginSettings, sanitizePluginSettings } from "./settings";
 import { ObsidianCodexSettingTab } from "./settings-tab";
 
 export default class ObsidianCodexPlugin extends Plugin {
   settings!: PluginSettings;
+  codexService!: CodexService;
 
   async onload(): Promise<void> {
     await this.loadSettings();
+    this.codexService = new CodexService({
+      getCodexPath: () => this.settings.codexPath
+    });
 
     this.addSettingTab(new ObsidianCodexSettingTab(this.app, this));
     this.registerView(CODEX_CHAT_VIEW_TYPE, (leaf) => new ChatView(leaf, this));

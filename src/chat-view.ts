@@ -6,10 +6,11 @@ import {
   WorkspaceLeaf
 } from "obsidian";
 import { buildContextPayload, type ContextInput } from "./context-builder";
-import { cancelCurrentTurn, createThread, mapThreadEvent, sendMessage } from "./codex-service";
+import { mapThreadEvent } from "./codex-service";
 import type ObsidianCodexPlugin from "./main";
 
 export const CODEX_CHAT_VIEW_TYPE = "obsidian-codex-chat";
+const SELECTION_CHANGE_DEBOUNCE_MS = 120;
 
 type ChatMessageRole = "user" | "assistant" | "status";
 
@@ -23,6 +24,7 @@ export class ChatView extends ItemView {
   private sessionStarted = false;
   private isSending = false;
   private wasCancelled = false;
+  private selectionChangeTimer: number | null = null;
 
   constructor(leaf: WorkspaceLeaf, private readonly plugin: ObsidianCodexPlugin) {
     super(leaf);
@@ -38,13 +40,14 @@ export class ChatView extends ItemView {
 
   async onOpen(): Promise<void> {
     this.render();
-    this.updateContextSummary();
-    this.registerEvent(this.app.workspace.on("active-leaf-change", () => this.updateContextSummary()));
-    this.registerDomEvent(document, "selectionchange", () => this.updateContextSummary());
+    void this.updateContextSummary();
+    this.registerEvent(this.app.workspace.on("active-leaf-change", () => void this.updateContextSummary()));
+    this.registerDomEvent(document, "selectionchange", () => this.scheduleContextSummaryUpdate());
   }
 
   async onClose(): Promise<void> {
-    cancelCurrentTurn();
+    this.clearScheduledContextSummaryUpdate();
+    this.plugin.codexService.cancelCurrentTurn();
   }
 
   private render(): void {
@@ -96,7 +99,7 @@ export class ChatView extends ItemView {
   }
 
   private resetConversation(): void {
-    cancelCurrentTurn();
+    this.plugin.codexService.cancelCurrentTurn();
     this.sessionStarted = false;
     this.wasCancelled = false;
     this.activeAssistantEl = null;
@@ -146,7 +149,7 @@ export class ChatView extends ItemView {
     const prompt = buildContextPayload(context);
 
     if (!this.sessionStarted) {
-      createThread(threadOptions);
+      this.plugin.codexService.createThread(threadOptions);
       this.sessionStarted = true;
     }
 
@@ -159,7 +162,7 @@ export class ChatView extends ItemView {
     let assistantText = "";
 
     try {
-      for await (const event of sendMessage(prompt, threadOptions)) {
+      for await (const event of this.plugin.codexService.sendMessage(prompt, threadOptions)) {
         if (event.type === "turn.failed") {
           throw new Error(event.error.message);
         }
@@ -203,7 +206,22 @@ export class ChatView extends ItemView {
     }
 
     this.wasCancelled = true;
-    cancelCurrentTurn();
+    this.plugin.codexService.cancelCurrentTurn();
+  }
+
+  private scheduleContextSummaryUpdate(): void {
+    this.clearScheduledContextSummaryUpdate();
+    this.selectionChangeTimer = window.setTimeout(() => {
+      this.selectionChangeTimer = null;
+      void this.updateContextSummary();
+    }, SELECTION_CHANGE_DEBOUNCE_MS);
+  }
+
+  private clearScheduledContextSummaryUpdate(): void {
+    if (this.selectionChangeTimer !== null) {
+      window.clearTimeout(this.selectionChangeTimer);
+      this.selectionChangeTimer = null;
+    }
   }
 
   private buildThreadOptions(): {

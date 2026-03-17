@@ -1,5 +1,12 @@
 import { spawn } from "node:child_process";
-import { Codex, type Thread, type ThreadEvent, type ThreadOptions, type TurnOptions } from "@openai/codex-sdk";
+import {
+  Codex,
+  type CodexOptions,
+  type RunStreamedResult,
+  type ThreadEvent,
+  type ThreadOptions,
+  type TurnOptions
+} from "@openai/codex-sdk";
 
 export function finalizeCodexProbeResult(code: number | null, output: string, error: string): string {
   if (code !== 0) {
@@ -40,12 +47,18 @@ export async function probeCodexCli(command = "codex"): Promise<string> {
   });
 }
 
-const codexClient = new Codex({
-  codexPathOverride: ""
-});
+export interface ThreadLike {
+  runStreamed(input: string, turnOptions?: TurnOptions): Promise<RunStreamedResult>;
+}
 
-let currentThread: Thread | null = null;
-let currentAbortController: AbortController | null = null;
+export interface CodexClientLike {
+  startThread(options?: ThreadOptions): ThreadLike;
+}
+
+export interface CodexServiceOptions {
+  getCodexPath: () => string;
+  createClient?: (options: CodexOptions) => CodexClientLike;
+}
 
 export function mapThreadEvent(event: ThreadEvent): { type: string; text?: string; message?: string } {
   if (event.type === "item.completed" || event.type === "item.updated") {
@@ -62,33 +75,62 @@ export function mapThreadEvent(event: ThreadEvent): { type: string; text?: strin
   return { type: "noop" };
 }
 
-function ensureThread(options?: ThreadOptions): Thread {
-  if (!currentThread) {
-    currentThread = codexClient.startThread(options);
+function createCodexClient(options: CodexOptions): CodexClientLike {
+  return new Codex(options);
+}
+
+export class CodexService {
+  private client: CodexClientLike | null = null;
+  private clientCodexPath = "";
+  private currentThread: ThreadLike | null = null;
+  private currentAbortController: AbortController | null = null;
+
+  constructor(private readonly options: CodexServiceOptions) {}
+
+  createThread(threadOptions: ThreadOptions): ThreadLike {
+    const client = this.getOrCreateClient();
+    this.currentThread = client.startThread(threadOptions);
+    this.currentAbortController = null;
+    return this.currentThread;
   }
 
-  return currentThread;
-}
+  async *sendMessage(input: string, threadOptions?: ThreadOptions): AsyncGenerator<ThreadEvent> {
+    const thread = this.ensureThread(threadOptions);
+    this.currentAbortController?.abort();
+    this.currentAbortController = new AbortController();
+    const turnOptions: TurnOptions = { signal: this.currentAbortController.signal };
+    const result = await thread.runStreamed(input, turnOptions);
 
-export function createThread(options: ThreadOptions): Thread {
-  currentThread = codexClient.startThread(options);
-  currentAbortController = null;
-  return currentThread;
-}
-
-export async function* sendMessage(input: string, options?: ThreadOptions): AsyncGenerator<ThreadEvent> {
-  const thread = ensureThread(options);
-  currentAbortController?.abort();
-  currentAbortController = new AbortController();
-  const turnOptions: TurnOptions = { signal: currentAbortController.signal };
-  const result = await thread.runStreamed(input, turnOptions);
-
-  for await (const event of result.events) {
-    yield event;
+    for await (const event of result.events) {
+      yield event;
+    }
   }
-}
 
-export function cancelCurrentTurn(): void {
-  currentAbortController?.abort();
-  currentAbortController = null;
+  cancelCurrentTurn(): void {
+    this.currentAbortController?.abort();
+    this.currentAbortController = null;
+  }
+
+  private ensureThread(threadOptions?: ThreadOptions): ThreadLike {
+    const client = this.getOrCreateClient();
+    if (!this.currentThread) {
+      this.currentThread = client.startThread(threadOptions);
+    }
+
+    return this.currentThread;
+  }
+
+  private getOrCreateClient(): CodexClientLike {
+    const codexPath = this.options.getCodexPath().trim();
+    if (!this.client || this.clientCodexPath !== codexPath) {
+      this.cancelCurrentTurn();
+      this.currentThread = null;
+      this.client = (this.options.createClient ?? createCodexClient)(
+        codexPath ? { codexPathOverride: codexPath } : {}
+      );
+      this.clientCodexPath = codexPath;
+    }
+
+    return this.client;
+  }
 }
