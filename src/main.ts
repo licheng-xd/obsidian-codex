@@ -1,5 +1,5 @@
 import { Notice, Plugin } from "obsidian";
-import { ChatView, CODEX_CHAT_VIEW_TYPE } from "./chat-view";
+import { ChatView, CODEX_CHAT_VIEW_TYPE, CODEX_ICON } from "./chat-view";
 import { CodexService, probeCodexCli } from "./codex-service";
 import { type PluginSettings, sanitizePluginSettings } from "./settings";
 import { ObsidianCodexSettingTab } from "./settings-tab";
@@ -16,6 +16,9 @@ export default class ObsidianCodexPlugin extends Plugin {
 
     this.addSettingTab(new ObsidianCodexSettingTab(this.app, this));
     this.registerView(CODEX_CHAT_VIEW_TYPE, (leaf) => new ChatView(leaf, this));
+    this.addRibbonIcon(CODEX_ICON, "Open Obsidian Codex", () => {
+      void this.activateChatView();
+    });
 
     this.addCommand({
       id: "obsidian-codex-open-placeholder",

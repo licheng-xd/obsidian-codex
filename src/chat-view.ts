@@ -10,6 +10,7 @@ import { mapThreadEvent } from "./codex-service";
 import type ObsidianCodexPlugin from "./main";
 
 export const CODEX_CHAT_VIEW_TYPE = "obsidian-codex-chat";
+export const CODEX_ICON = "bot";
 const SELECTION_CHANGE_DEBOUNCE_MS = 120;
 
 type ChatMessageRole = "user" | "assistant" | "status";
@@ -36,6 +37,10 @@ export class ChatView extends ItemView {
 
   getDisplayText(): string {
     return "Obsidian Codex";
+  }
+
+  getIcon(): string {
+    return CODEX_ICON;
   }
 
   async onOpen(): Promise<void> {
