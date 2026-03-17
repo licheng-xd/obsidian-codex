@@ -1,3 +1,79 @@
-.obsidian-codex {
-  color: var(--text-normal);
+.obsidian-codex-view {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  height: 100%;
+  padding: 12px;
+}
+
+.obsidian-codex-header {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+}
+
+.obsidian-codex-header h2 {
+  margin: 0;
+}
+
+.obsidian-codex-context {
+  background: var(--background-secondary);
+  border-radius: 10px;
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  padding: 10px 12px;
+}
+
+.obsidian-codex-messages {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.obsidian-codex-message {
+  background: var(--background-secondary);
+  border-radius: 12px;
+  line-height: 1.5;
+  max-width: 92%;
+  padding: 10px 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.obsidian-codex-message.is-user {
+  align-self: flex-end;
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+}
+
+.obsidian-codex-message.is-status {
+  align-self: center;
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+}
+
+.obsidian-codex-message.is-error {
+  background: color-mix(in srgb, var(--color-red) 14%, var(--background-secondary));
+  border: 1px solid color-mix(in srgb, var(--color-red) 30%, transparent);
+}
+
+.obsidian-codex-composer {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.obsidian-codex-input {
+  min-height: 110px;
+  resize: vertical;
+  width: 100%;
+}
+
+.obsidian-codex-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
 }
