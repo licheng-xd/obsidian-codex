@@ -54,6 +54,7 @@
 | `@modelcontextprotocol/sdk` was only present to satisfy missing third-party types, not because the plugin uses MCP directly | Replaced the package dependency with a local ambient type shim for `@modelcontextprotocol/sdk/types.js` |
 | Bundling behavior for `@openai/codex-sdk` needed confirmation before changing esbuild externals | Kept the SDK bundled: Obsidian plugins ship `main.js` as the runtime artifact, and `main.js` no longer contains a runtime import for `@openai/codex-sdk` after build |
 | Obsidian plugin load failed before `onload()` because esbuild converted `import.meta` inside the bundled Codex SDK to an empty object, so `createRequire(import.meta.url)` became `createRequire(undefined)` at module evaluation time | Updated the build config to replace `import.meta` with a bundle-local `{ url: pathToFileURL(__filename).href }`, and verified `main.js` can now be `require()`'d successfully with an `obsidian` stub |
+| Obsidian/Electron could resolve an absolute `codex` path but still failed with `env: node: No such file or directory` because the global npm launcher is a `#!/usr/bin/env node` script and GUI-launched Obsidian did not inherit the `nvm` `PATH` entry for `node` | When the configured `codexPath` is an absolute env-node launcher, the plugin now injects the sibling `node` directory into the child-process `PATH` for both runtime probing and SDK-backed thread execution |
 
 ## Resources
 - Reference repository: `https://github.com/YishenTu/claudian`

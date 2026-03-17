@@ -190,6 +190,10 @@
 | Bundle check | `rg -n \"@openai/codex-sdk\" main.js` | No runtime import remains in built artifact | No matches | ✓ |
 | Plugin load reproduction | `require('./main.js')` with `obsidian` stub before build fix | Reproduce startup failure outside Obsidian | Failed with `createRequire(undefined)` | ✓ |
 | Plugin load verification | `require('./main.js')` with `obsidian` stub after build fix | Built plugin loads without startup exception | `require-ok` | ✓ |
+| GUI runtime path fix targeted test | `npm test -- tests/codex-service.test.ts` | Absolute `codexPath` launcher works even when `PATH` lacks `node` | 10 tests passed, including env-node launcher fixture | ✓ |
+| GUI runtime path fix full test | `npm test` | Full suite still passes after runtime env injection | 2 test files, 15 tests passed | ✓ |
+| GUI runtime path fix typecheck | `npm run typecheck` | No TypeScript regressions after env-path fix | Succeeded | ✓ |
+| GUI runtime path fix build | `npm run build` | Production bundle still succeeds after env-path fix | Succeeded | ✓ |
 
 ## Error Log
 | Timestamp | Error | Attempt | Resolution |
@@ -197,6 +201,7 @@
 | 2026-03-17 09:43 | `executing-plans` precondition conflict: no git repository existed for worktree creation | 1 | Created a repository baseline commit, then branched into a worktree |
 | 2026-03-17 09:45 | `apply_patch` initially wrote scaffold files into the main workspace instead of the feature worktree | 1 | Recreated files under `.worktrees/mvp-batch-1` and cleaned the main workspace back to a clean baseline |
 | 2026-03-17 09:47 | `tsc --noEmit` reported `TS18003` because `outDir: "."` excluded the full workspace | 1 | Removed `outDir` and kept `rootDir: "."` |
+| 2026-03-17 14:20 | Obsidian runtime probe failed with `env: node: No such file or directory` after the user configured an absolute `codex` path | 1 | Detected the npm-installed CLI launcher was `#!/usr/bin/env node`; patched probe + SDK env creation to prepend the sibling `node` directory to `PATH` when needed |
 
 ## 5-Question Reboot Check
 | Question | Answer |

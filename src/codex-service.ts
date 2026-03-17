@@ -1,4 +1,6 @@
 import { spawn } from "node:child_process";
+import { existsSync, readFileSync } from "node:fs";
+import * as path from "node:path";
 import {
   Codex,
   type CodexOptions,
@@ -7,6 +9,9 @@ import {
   type ThreadOptions,
   type TurnOptions
 } from "@openai/codex-sdk";
+
+const ENV_NODE_SHEBANG = /^#!\s*\/usr\/bin\/env(?:\s+-S)?\s+node(?:\s|$)/;
+const NODE_BINARY_NAME = process.platform === "win32" ? "node.exe" : "node";
 
 export function finalizeCodexProbeResult(code: number | null, output: string, error: string): string {
   if (code !== 0) {
@@ -21,10 +26,68 @@ export function finalizeCodexProbeResult(code: number | null, output: string, er
   return version;
 }
 
+function cloneProcessEnv(envSource: NodeJS.ProcessEnv = process.env): Record<string, string> {
+  const env: Record<string, string> = {};
+
+  for (const [key, value] of Object.entries(envSource)) {
+    if (typeof value === "string") {
+      env[key] = value;
+    }
+  }
+
+  return env;
+}
+
+function prependPathEntry(currentPath: string | undefined, entry: string): string {
+  const entries = (currentPath ?? "").split(path.delimiter).filter(Boolean);
+  if (!entries.includes(entry)) {
+    entries.unshift(entry);
+  }
+
+  return entries.join(path.delimiter);
+}
+
+function resolveNodeBinDirectory(command: string): string | null {
+  const resolvedCommand = command.trim();
+  if (!resolvedCommand || !path.isAbsolute(resolvedCommand)) {
+    return null;
+  }
+
+  try {
+    const firstLine = readFileSync(resolvedCommand, "utf8").split(/\r?\n/, 1)[0] ?? "";
+    if (!ENV_NODE_SHEBANG.test(firstLine)) {
+      return null;
+    }
+  } catch {
+    return null;
+  }
+
+  const nodePath = path.join(path.dirname(resolvedCommand), NODE_BINARY_NAME);
+  return existsSync(nodePath) ? path.dirname(nodePath) : null;
+}
+
+function buildCodexProcessEnv(
+  command: string,
+  envSource: NodeJS.ProcessEnv = process.env
+): Record<string, string> | undefined {
+  const nodeBinDirectory = resolveNodeBinDirectory(command);
+
+  if (!nodeBinDirectory) {
+    return undefined;
+  }
+
+  const env = cloneProcessEnv(envSource);
+  env.PATH = prependPathEntry(env.PATH, nodeBinDirectory);
+  return env;
+}
+
 export async function probeCodexCli(command = "codex"): Promise<string> {
   return await new Promise((resolve, reject) => {
     const resolvedCommand = command.trim() || "codex";
-    const child = spawn(resolvedCommand, ["--version"]);
+    const env = buildCodexProcessEnv(resolvedCommand);
+    const child = env
+      ? spawn(resolvedCommand, ["--version"], { env })
+      : spawn(resolvedCommand, ["--version"]);
     let output = "";
     let error = "";
 
@@ -125,9 +188,16 @@ export class CodexService {
     if (!this.client || this.clientCodexPath !== codexPath) {
       this.cancelCurrentTurn();
       this.currentThread = null;
-      this.client = (this.options.createClient ?? createCodexClient)(
-        codexPath ? { codexPathOverride: codexPath } : {}
-      );
+      const clientOptions: CodexOptions = {};
+      const env = buildCodexProcessEnv(codexPath);
+      if (codexPath) {
+        clientOptions.codexPathOverride = codexPath;
+      }
+      if (env) {
+        clientOptions.env = env;
+      }
+
+      this.client = (this.options.createClient ?? createCodexClient)(clientOptions);
       this.clientCodexPath = codexPath;
     }
 
