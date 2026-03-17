@@ -6,6 +6,7 @@ import {
   WorkspaceLeaf
 } from "obsidian";
 import { buildContextPayload, type ContextInput } from "./context-builder";
+import { formatContextSummary } from "./context-summary";
 import { mapThreadEvent } from "./codex-service";
 import type ObsidianCodexPlugin from "./main";
 
@@ -131,11 +132,13 @@ export class ChatView extends ItemView {
 
   private async updateContextSummary(): Promise<void> {
     const context = await this.collectContext("");
-    const noteLabel = context.activeNotePath ?? "No active note";
-    const selectionLabel = context.selectionText
-      ? `${context.selectionText.length} chars selected`
-      : "No selection";
-    this.contextEl.setText(`Current note: ${noteLabel} / ${selectionLabel}`);
+    this.contextEl.setText(
+      formatContextSummary({
+        vaultRootPath: this.getVaultRootPath(),
+        activeNotePath: context.activeNotePath,
+        selectionText: context.selectionText
+      })
+    );
   }
 
   private async handleSend(): Promise<void> {
@@ -235,16 +238,17 @@ export class ChatView extends ItemView {
     sandboxMode: ObsidianCodexPlugin["settings"]["sandboxMode"];
     approvalPolicy: ObsidianCodexPlugin["settings"]["approvalPolicy"];
   } {
-    const adapter = this.app.vault.adapter;
-    const workingDirectory =
-      adapter instanceof FileSystemAdapter ? adapter.getBasePath() : undefined;
-
     return {
-      workingDirectory,
+      workingDirectory: this.getVaultRootPath(),
       skipGitRepoCheck: this.plugin.settings.skipGitRepoCheck,
       sandboxMode: this.plugin.settings.sandboxMode,
       approvalPolicy: this.plugin.settings.approvalPolicy
     };
+  }
+
+  private getVaultRootPath(): string | undefined {
+    const adapter = this.app.vault.adapter;
+    return adapter instanceof FileSystemAdapter ? adapter.getBasePath() : undefined;
   }
 
   private async collectContext(userInput: string): Promise<ContextInput> {
