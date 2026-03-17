@@ -4,7 +4,7 @@
 Create an Obsidian plugin project that delivers a Codex-based assistant experience inspired by the `YishenTu/claudian` project, with a clear design, implementation plan, and validated codebase.
 
 ## Current Phase
-Phase 3
+Phase 4
 
 ## Phases
 ### Phase 1: Requirements & Discovery
@@ -25,18 +25,18 @@ Phase 3
 
 ### Phase 3: Implementation
 - [x] Scaffold plugin project
-- [ ] Implement core plugin architecture
-- [ ] Add Codex integration flows
-- [ ] Add settings, commands, and UI entry points
-- [ ] Test incrementally
-- **Status:** in_progress
+- [x] Implement core plugin architecture
+- [x] Add Codex integration flows
+- [x] Add settings, commands, and UI entry points
+- [x] Test incrementally
+- **Status:** complete
 
 ### Phase 4: Testing & Verification
-- [ ] Run build and automated checks
-- [ ] Validate plugin manifest and packaging
-- [ ] Fix issues discovered during verification
-- [ ] Document test results in progress.md
-- **Status:** pending
+- [x] Run build and automated checks
+- [x] Validate plugin manifest and packaging
+- [x] Fix issues discovered during verification
+- [x] Document test results in progress.md
+- **Status:** in_progress
 
 ### Phase 5: Delivery
 - [ ] Review changed files and outcomes

@@ -49,6 +49,7 @@
 | No existing project files are present in the workspace | Plan to scaffold the plugin after design approval |
 | `executing-plans` requires worktree isolation, but the workspace started without a git repository or initial commit | Initialized a repository baseline first, then created a dedicated feature worktree before implementation |
 | The implementation plan's initial `tsconfig.json` combined `include: ["tests/**/*.ts"]` with `rootDir: "src"` and `outDir: "."`, which breaks `tsc --noEmit` | Adjusted the real scaffold to use `rootDir: "."` and no `outDir`, keeping test files type-checkable |
+| `@openai/codex-sdk@0.114.0`'s published type declarations require `@modelcontextprotocol/sdk/types.js`, but the dependency is not pulled into this app's type-checking environment automatically | Added `@modelcontextprotocol/sdk` as an explicit app dependency so `npm run typecheck` remains green once the SDK is imported |
 
 ## Resources
 - Reference repository: `https://github.com/YishenTu/claudian`

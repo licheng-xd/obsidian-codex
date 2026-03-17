@@ -98,6 +98,39 @@
   - `tests/codex-service.test.ts` (created)
   - `progress.md` (updated)
 
+### Phase 3: Parallel Batch For Tasks 4-6
+- **Status:** complete
+- **Updated:** 2026-03-17 13:43 CST
+- Actions taken:
+  - Used parallel subagents for Task 4 (`context-builder`) and Task 5 (`streaming codex service`) with separate file ownership.
+  - Added a pure context builder with truncation and selection de-duplication.
+  - Extended the Codex service from runtime probing to thread creation, streamed message sending, event mapping, and cancellation.
+  - Added a concrete chat sidebar view and replaced the no-op open command with a real view activation path.
+  - Introduced `@modelcontextprotocol/sdk` as an explicit dependency to satisfy the Codex SDK's published type declarations.
+- Files created/modified:
+  - `src/context-builder.ts` (created)
+  - `tests/context-builder.test.ts` (created)
+  - `src/codex-service.ts` (updated)
+  - `tests/codex-service.test.ts` (updated)
+  - `src/chat-view.ts` (created)
+  - `src/main.ts` (updated)
+  - `styles.css` (updated)
+  - `package.json` (updated)
+  - `package-lock.json` (updated)
+  - `task_plan.md` (updated)
+  - `findings.md` (updated)
+  - `progress.md` (updated)
+
+### Phase 4: Automated Verification
+- **Status:** in_progress
+- **Updated:** 2026-03-17 13:43 CST
+- Actions taken:
+  - Ran the full Vitest suite after integrating Task 4-6 changes.
+  - Re-ran type checking and production build after chat view wiring.
+  - Confirmed that manual Obsidian desktop verification is still pending and cannot be asserted from the terminal session.
+- Files created/modified:
+  - `progress.md` (updated)
+
 ## Test Results
 | Test | Input | Expected | Actual | Status |
 |------|-------|----------|--------|--------|
@@ -112,6 +145,10 @@
 | Review fix full test | `npm test` | Repository test entry is usable | 1 test file passed | ✓ |
 | Review fix typecheck | `npm run typecheck` | No TypeScript regressions | Succeeded | ✓ |
 | Review fix build | `npm run build` | No bundling regressions | Succeeded | ✓ |
+| Task 4 targeted test | `npm run test -- tests/context-builder.test.ts` | Context builder rules pass | 5 tests passed | ✓ |
+| Parallel batch full test | `npm test` | Context builder + Codex service suites both pass | 2 test files, 10 tests passed | ✓ |
+| Parallel batch typecheck | `npm run typecheck` | Chat view integration compiles | Succeeded | ✓ |
+| Parallel batch build | `npm run build` | Plugin bundle regenerates with chat view | Succeeded | ✓ |
 
 ## Error Log
 | Timestamp | Error | Attempt | Resolution |
