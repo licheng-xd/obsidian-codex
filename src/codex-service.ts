@@ -2,7 +2,8 @@ import { spawn } from "node:child_process";
 
 export async function probeCodexCli(command = "codex"): Promise<string> {
   return await new Promise((resolve, reject) => {
-    const child = spawn(command, ["--version"]);
+    const resolvedCommand = command.trim() || "codex";
+    const child = spawn(resolvedCommand, ["--version"]);
     let output = "";
     let error = "";
 
