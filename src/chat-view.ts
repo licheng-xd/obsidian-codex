@@ -7,11 +7,11 @@ import {
 } from "obsidian";
 import { buildContextPayload, type ContextInput } from "./context-builder";
 import { formatContextSummary } from "./context-summary";
+import { CODEX_ICON } from "./codex-icon";
 import { mapThreadEvent } from "./codex-service";
 import type ObsidianCodexPlugin from "./main";
 
 export const CODEX_CHAT_VIEW_TYPE = "obsidian-codex-chat";
-export const CODEX_ICON = "bot";
 const SELECTION_CHANGE_DEBOUNCE_MS = 120;
 
 type ChatMessageRole = "user" | "assistant" | "status";

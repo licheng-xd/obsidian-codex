@@ -1,6 +1,8 @@
 import { Notice, Plugin } from "obsidian";
-import { ChatView, CODEX_CHAT_VIEW_TYPE, CODEX_ICON } from "./chat-view";
+import { ChatView, CODEX_CHAT_VIEW_TYPE } from "./chat-view";
+import { CODEX_ICON } from "./codex-icon";
 import { CodexService, probeCodexCli } from "./codex-service";
+import { registerCodexIcon } from "./icons";
 import { type PluginSettings, sanitizePluginSettings } from "./settings";
 import { ObsidianCodexSettingTab } from "./settings-tab";
 
@@ -10,6 +12,7 @@ export default class ObsidianCodexPlugin extends Plugin {
 
   async onload(): Promise<void> {
     await this.loadSettings();
+    registerCodexIcon();
     this.codexService = new CodexService({
       getCodexPath: () => this.settings.codexPath
     });
