@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { finalizeCodexProbeResult } from "../src/codex-service";
+import { finalizeCodexProbeResult, mapThreadEvent } from "../src/codex-service";
+import type { ThreadEvent } from "@openai/codex-sdk";
 
 describe("finalizeCodexProbeResult", () => {
   it("returns a trimmed version string when stdout is present", () => {
@@ -16,5 +17,22 @@ describe("finalizeCodexProbeResult", () => {
     expect(() => finalizeCodexProbeResult(1, "", "spawn codex ENOENT")).toThrow(
       "spawn codex ENOENT"
     );
+  });
+});
+
+describe("mapThreadEvent", () => {
+  it("maps agent items to text chunks", () => {
+    const event: ThreadEvent = {
+      type: "item.completed",
+      item: { id: "1", type: "agent_message", text: "hello" }
+    };
+
+    expect(mapThreadEvent(event)).toEqual({ type: "text", text: "hello" });
+  });
+
+  it("maps thread errors to error chunks", () => {
+    const event: ThreadEvent = { type: "error", message: "boom" };
+
+    expect(mapThreadEvent(event)).toEqual({ type: "error", message: "boom" });
   });
 });
