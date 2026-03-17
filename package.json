@@ -1,0 +1,22 @@
+{
+  "name": "obsidian-codex",
+  "version": "0.0.1",
+  "private": true,
+  "main": "main.js",
+  "scripts": {
+    "dev": "node esbuild.config.mjs",
+    "build": "node esbuild.config.mjs production",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@openai/codex-sdk": "^0.114.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "esbuild": "^0.27.0",
+    "obsidian": "latest",
+    "typescript": "^5.9.0",
+    "vitest": "^3.2.0"
+  }
+}

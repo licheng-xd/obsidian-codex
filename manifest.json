@@ -1,0 +1,9 @@
+{
+  "id": "obsidian-codex",
+  "name": "Obsidian Codex",
+  "version": "0.0.1",
+  "minAppVersion": "1.5.0",
+  "description": "OpenAI Codex sidebar for Obsidian.",
+  "author": "licheng",
+  "isDesktopOnly": true
+}
