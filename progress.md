@@ -86,6 +86,18 @@
   - `findings.md` (updated)
   - `progress.md` (updated)
 
+### Phase 3: Review Fixes
+- **Status:** complete
+- **Updated:** 2026-03-17 13:29 CST
+- Actions taken:
+  - Added a focused Vitest suite for Codex probe result handling.
+  - Hardened probe result validation so exit code `0` with empty stdout is treated as a failure instead of a false positive.
+  - Restored `npm test` as a valid repository-level check by adding real test coverage instead of suppressing the no-test failure.
+- Files created/modified:
+  - `src/codex-service.ts` (updated)
+  - `tests/codex-service.test.ts` (created)
+  - `progress.md` (updated)
+
 ## Test Results
 | Test | Input | Expected | Actual | Status |
 |------|-------|----------|--------|--------|
@@ -95,6 +107,11 @@
 | Task 2 terminal probe | `codex --version` | Local Codex CLI is available | `codex-cli 0.114.0` | ✓ |
 | Task 3 typecheck | `npm run typecheck` | Settings types compile | Succeeded | ✓ |
 | Task 3 build | `npm run build` | Settings-integrated plugin build succeeds | Succeeded | ✓ |
+| Review fix red test | `npm run test -- tests/codex-service.test.ts` before code change | Fails because new behavior is not implemented yet | Failed with missing export as expected | ✓ |
+| Review fix targeted test | `npm run test -- tests/codex-service.test.ts` after code change | Probe result rules pass | 3 tests passed | ✓ |
+| Review fix full test | `npm test` | Repository test entry is usable | 1 test file passed | ✓ |
+| Review fix typecheck | `npm run typecheck` | No TypeScript regressions | Succeeded | ✓ |
+| Review fix build | `npm run build` | No bundling regressions | Succeeded | ✓ |
 
 ## Error Log
 | Timestamp | Error | Attempt | Resolution |
