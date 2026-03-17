@@ -12,7 +12,7 @@
 - 显示 `Vault root`、`Current note` 和选区摘要
 - 支持流式回复与取消当前轮
 - 支持运行时探针，验证 Codex CLI 是否可用
-- 支持 `codexPath`、`skipGitRepoCheck`、`sandboxMode`、`approvalPolicy` 设置
+- 支持 `codexPath`、`skipGitRepoCheck`、`sandboxMode`、`approvalPolicy`、`model`、`yoloMode` 设置
 - 提供 Ribbon 图标和侧边栏标签页图标
 
 ## 非目标
@@ -90,6 +90,10 @@ npm run build
   说明：可选，填写 Codex CLI 的绝对路径；留空时走 `PATH`
 - `Skip git repo check`
   说明：允许在不是 Git 仓库的 Vault 中运行 Codex
+- `Model`
+  说明：未来 Codex 线程执行默认使用的模型名，默认 `gpt-5-codex`
+- `YOLO mode`
+  说明：持久化高风险开关；开启后未来线程默认使用 `approvalPolicy='never'` 与 `sandboxMode='danger-full-access'`
 - `Sandbox mode`
   说明：当前线程默认沙箱策略
 - `Approval policy`
@@ -104,6 +108,13 @@ npm run build
    ```
 2. 打开 Obsidian 后执行命令 `Verify Codex Runtime`
 3. 如果桌面端 Obsidian 找不到 `codex`，把 `command -v codex` 返回的绝对路径填入 `Codex path`
+4. 如需切换默认模型，在 `Model` 中填写完整模型 ID
+
+安全说明：
+
+- `YOLO mode` 是**持久化设置**，关闭插件或重启 Obsidian 后仍会保留
+- 开启后，未来线程会以 `never + danger-full-access` 运行，默认安全边界会被放宽
+- 仅建议在你完全信任当前 Vault 与执行环境时启用
 
 ## 使用方式
 

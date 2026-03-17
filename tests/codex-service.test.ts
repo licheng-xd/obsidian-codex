@@ -68,7 +68,160 @@ describe("mapThreadEvent", () => {
       item: { id: "1", type: "agent_message", text: "hello" }
     };
 
-    expect(mapThreadEvent(event)).toEqual({ type: "text", text: "hello" });
+    expect(mapThreadEvent(event)).toEqual({ type: "text", itemId: "1", text: "hello" });
+  });
+
+  it("maps reasoning items to reasoning events", () => {
+    const event: ThreadEvent = {
+      type: "item.updated",
+      item: { id: "2", type: "reasoning", text: "thinking" }
+    };
+
+    expect(mapThreadEvent(event)).toEqual({ type: "reasoning", itemId: "2", text: "thinking" });
+  });
+
+  it("maps command execution items to command events", () => {
+    const event: ThreadEvent = {
+      type: "item.updated",
+      item: {
+        id: "3",
+        type: "command_execution",
+        command: "npm test",
+        aggregated_output: "ok",
+        status: "completed",
+        exit_code: 0
+      }
+    };
+
+    expect(mapThreadEvent(event)).toEqual({
+      type: "command",
+      itemId: "3",
+      command: "npm test",
+      aggregatedOutput: "ok",
+      status: "completed",
+      exitCode: 0
+    });
+  });
+
+  it("maps file changes to file change events", () => {
+    const event: ThreadEvent = {
+      type: "item.completed",
+      item: {
+        id: "4",
+        type: "file_change",
+        status: "completed",
+        changes: [{ path: "src/main.ts", kind: "update" }]
+      }
+    };
+
+    expect(mapThreadEvent(event)).toEqual({
+      type: "file_change",
+      itemId: "4",
+      status: "completed",
+      changes: [{ path: "src/main.ts", kind: "update" }]
+    });
+  });
+
+  it("maps MCP tool calls to activity events", () => {
+    const event: ThreadEvent = {
+      type: "item.updated",
+      item: {
+        id: "5",
+        type: "mcp_tool_call",
+        server: "filesystem",
+        tool: "read_file",
+        arguments: { path: "README.md" },
+        status: "in_progress"
+      }
+    };
+
+    expect(mapThreadEvent(event)).toEqual({
+      type: "activity",
+      itemId: "5",
+      activityType: "mcp_tool_call",
+      title: "filesystem/read_file",
+      status: "in_progress"
+    });
+  });
+
+  it("maps web searches to activity events", () => {
+    const event: ThreadEvent = {
+      type: "item.completed",
+      item: { id: "6", type: "web_search", query: "obsidian codex plugin" }
+    };
+
+    expect(mapThreadEvent(event)).toEqual({
+      type: "activity",
+      itemId: "6",
+      activityType: "web_search",
+      title: "obsidian codex plugin"
+    });
+  });
+
+  it("maps todo lists to activity events", () => {
+    const event: ThreadEvent = {
+      type: "item.updated",
+      item: {
+        id: "7",
+        type: "todo_list",
+        items: [
+          { text: "plan", completed: true },
+          { text: "build", completed: false }
+        ]
+      }
+    };
+
+    expect(mapThreadEvent(event)).toEqual({
+      type: "activity",
+      itemId: "7",
+      activityType: "todo_list",
+      title: "1/2 tasks complete"
+    });
+  });
+
+  it("maps item-level errors to error events", () => {
+    const event: ThreadEvent = {
+      type: "item.completed",
+      item: { id: "8", type: "error", message: "item exploded" }
+    };
+
+    expect(mapThreadEvent(event)).toEqual({
+      type: "error",
+      itemId: "8",
+      message: "item exploded"
+    });
+  });
+
+  it("maps completed turns to usage events", () => {
+    const event: ThreadEvent = {
+      type: "turn.completed",
+      usage: {
+        input_tokens: 12,
+        cached_input_tokens: 3,
+        output_tokens: 8
+      }
+    };
+
+    expect(mapThreadEvent(event)).toEqual({
+      type: "turn_completed",
+      usage: {
+        inputTokens: 12,
+        cachedInputTokens: 3,
+        outputTokens: 8
+      }
+    });
+  });
+
+  it("maps failed turns to readable error messages", () => {
+    const event: ThreadEvent = {
+      type: "turn.failed",
+      error: { message: "turn failed" }
+    };
+
+    expect(mapThreadEvent(event)).toEqual({
+      type: "turn_failed",
+      message: "turn failed"
+    });
   });
 
   it("maps thread errors to error chunks", () => {

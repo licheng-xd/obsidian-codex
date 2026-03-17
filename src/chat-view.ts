@@ -5,12 +5,22 @@ import {
   Notice,
   WorkspaceLeaf
 } from "obsidian";
+import type { ThreadOptions } from "@openai/codex-sdk";
 import { shouldSubmitFromKeydown } from "./chat-input";
-import { buildContextPayload, type ContextInput } from "./context-builder";
+import {
+  NOTE_CHAR_LIMIT,
+  buildContextPayload,
+  measureLocalContextUsage,
+  type ContextInput
+} from "./context-builder";
 import { formatContextSummary } from "./context-summary";
 import { CODEX_ICON } from "./codex-icon";
 import { mapThreadEvent } from "./codex-service";
+import { renderEventCard } from "./event-cards";
 import type ObsidianCodexPlugin from "./main";
+import { DEFAULT_SETTINGS, patchPluginSettings, toggleYoloMode } from "./settings";
+import { StatusBar } from "./status-bar";
+import type { ContextUsage, MappedEvent } from "./types";
 
 export const CODEX_CHAT_VIEW_TYPE = "obsidian-codex-chat";
 const SELECTION_CHANGE_DEBOUNCE_MS = 120;
@@ -23,11 +33,18 @@ export class ChatView extends ItemView {
   private inputEl!: HTMLTextAreaElement;
   private sendButtonEl!: HTMLButtonElement;
   private cancelButtonEl!: HTMLButtonElement;
-  private activeAssistantEl: HTMLDivElement | null = null;
+  private statusBar: StatusBar | null = null;
   private sessionStarted = false;
   private isSending = false;
   private wasCancelled = false;
   private selectionChangeTimer: number | null = null;
+  private contextUsage: ContextUsage = {
+    localCharsUsed: 0,
+    localCharsLimit: NOTE_CHAR_LIMIT,
+    sdkInputTokens: null,
+    sdkCachedInputTokens: null,
+    sdkOutputTokens: null
+  };
 
   constructor(leaf: WorkspaceLeaf, private readonly plugin: ObsidianCodexPlugin) {
     super(leaf);
@@ -55,6 +72,8 @@ export class ChatView extends ItemView {
   async onClose(): Promise<void> {
     this.clearScheduledContextSummaryUpdate();
     this.plugin.codexService.cancelCurrentTurn();
+    this.statusBar?.destroy();
+    this.statusBar = null;
   }
 
   private render(): void {
@@ -112,16 +131,43 @@ export class ChatView extends ItemView {
       void this.handleSend();
     });
     this.cancelButtonEl.addEventListener("click", () => this.handleCancel());
+
+    this.statusBar?.destroy();
+    this.statusBar = new StatusBar(
+      contentEl,
+      this.plugin.settings.model,
+      this.plugin.settings.yoloMode,
+      {
+        onModelChange: async (model) => {
+          this.plugin.settings = patchPluginSettings(this.plugin.settings, { model });
+          await this.plugin.saveSettings();
+          this.statusBar?.updateModel(this.plugin.settings.model);
+        },
+        onYoloChange: async (enabled) => {
+          this.plugin.settings = toggleYoloMode(this.plugin.settings, enabled);
+          await this.plugin.saveSettings();
+          this.statusBar?.updateYolo(this.plugin.settings.yoloMode);
+        }
+      }
+    );
+    this.statusBar.updateContextUsage(this.contextUsage);
   }
 
   private resetConversation(): void {
     this.plugin.codexService.cancelCurrentTurn();
     this.sessionStarted = false;
     this.wasCancelled = false;
-    this.activeAssistantEl = null;
     this.messagesEl.empty();
     this.appendMessage("status", "Started a fresh Codex conversation.");
     this.setSendingState(false);
+    this.contextUsage = {
+      ...this.contextUsage,
+      sdkInputTokens: null,
+      sdkCachedInputTokens: null,
+      sdkOutputTokens: null
+    };
+    this.statusBar?.updateContextUsage(this.contextUsage);
+    void this.updateContextSummary();
   }
 
   private appendMessage(role: ChatMessageRole, text: string): HTMLDivElement {
@@ -131,6 +177,19 @@ export class ChatView extends ItemView {
     messageEl.setText(text);
     this.messagesEl.scrollTop = this.messagesEl.scrollHeight;
     return messageEl;
+  }
+
+  private appendThinkingIndicator(): HTMLDivElement {
+    const thinkingEl = this.messagesEl.ownerDocument.createElement("div");
+    thinkingEl.className = "obsidian-codex-thinking";
+    for (let index = 0; index < 3; index += 1) {
+      const dotEl = thinkingEl.ownerDocument.createElement("span");
+      thinkingEl.appendChild(dotEl);
+    }
+
+    this.messagesEl.appendChild(thinkingEl);
+    this.messagesEl.scrollTop = this.messagesEl.scrollHeight;
+    return thinkingEl;
   }
 
   private setSendingState(isSending: boolean): void {
@@ -149,6 +208,13 @@ export class ChatView extends ItemView {
         selectionText: context.selectionText
       })
     );
+    const localUsage = measureLocalContextUsage(context);
+    this.contextUsage = {
+      ...this.contextUsage,
+      localCharsUsed: localUsage.used,
+      localCharsLimit: localUsage.limit
+    };
+    this.statusBar?.updateContextUsage(this.contextUsage);
   }
 
   private async handleSend(): Promise<void> {
@@ -165,6 +231,13 @@ export class ChatView extends ItemView {
 
     const context = await this.collectContext(userInput);
     const prompt = buildContextPayload(context);
+    const localUsage = measureLocalContextUsage(context);
+    this.contextUsage = {
+      ...this.contextUsage,
+      localCharsUsed: localUsage.used,
+      localCharsLimit: localUsage.limit
+    };
+    this.statusBar?.updateContextUsage(this.contextUsage);
 
     if (!this.sessionStarted) {
       this.plugin.codexService.createThread(threadOptions);
@@ -173,46 +246,74 @@ export class ChatView extends ItemView {
 
     this.wasCancelled = false;
     this.appendMessage("user", userInput);
-    this.activeAssistantEl = this.appendMessage("assistant", "Thinking...");
+    const thinkingEl = this.appendThinkingIndicator();
     this.inputEl.value = "";
     this.setSendingState(true);
 
-    let assistantText = "";
+    const eventElements = new Map<string, HTMLElement>();
+    let sawVisibleAssistantEvent = false;
+    let streamErrorHandled = false;
+
+    const removeThinkingIndicator = (): void => {
+      thinkingEl.remove();
+    };
 
     try {
       for await (const event of this.plugin.codexService.sendMessage(prompt, threadOptions)) {
-        if (event.type === "turn.failed") {
-          throw new Error(event.error.message);
-        }
-
         const mapped = mapThreadEvent(event);
-        if (mapped.type === "text" && mapped.text !== undefined) {
-          assistantText = mapped.text;
-          this.activeAssistantEl.setText(assistantText);
+
+        if (mapped.type === "noop" || mapped.type === "turn_started") {
+          continue;
         }
 
-        if (mapped.type === "error" && mapped.message) {
+        if (mapped.type === "turn_completed") {
+          this.contextUsage = {
+            ...this.contextUsage,
+            sdkInputTokens: mapped.usage.inputTokens,
+            sdkCachedInputTokens: mapped.usage.cachedInputTokens,
+            sdkOutputTokens: mapped.usage.outputTokens
+          };
+          this.statusBar?.updateContextUsage(this.contextUsage);
+          continue;
+        }
+
+        if (mapped.type === "error" || mapped.type === "turn_failed") {
+          removeThinkingIndicator();
+          renderEventCard(this.messagesEl, mapped);
+          this.messagesEl.scrollTop = this.messagesEl.scrollHeight;
+          streamErrorHandled = true;
           throw new Error(mapped.message);
         }
+
+        removeThinkingIndicator();
+        sawVisibleAssistantEvent = true;
+        const existingEl = "itemId" in mapped ? eventElements.get(mapped.itemId) : undefined;
+        const cardEl = renderEventCard(this.messagesEl, mapped as Exclude<MappedEvent, { type: "turn_started" | "turn_completed" | "turn_failed" | "error" | "noop" }>, existingEl);
+        if ("itemId" in mapped) {
+          eventElements.set(mapped.itemId, cardEl);
+        }
+        this.messagesEl.scrollTop = this.messagesEl.scrollHeight;
       }
 
-      if (!assistantText) {
-        this.activeAssistantEl.setText("No response received.");
+      removeThinkingIndicator();
+
+      if (!sawVisibleAssistantEvent && !streamErrorHandled) {
+        this.appendMessage("status", "No response received.");
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       if (this.wasCancelled) {
-        const interruptedText = assistantText
-          ? `${assistantText}\n\nInterrupted.`
-          : "Interrupted.";
-        this.activeAssistantEl.setText(interruptedText);
+        removeThinkingIndicator();
+        this.appendMessage("status", "Interrupted.");
+      } else if (!streamErrorHandled) {
+        removeThinkingIndicator();
+        renderEventCard(this.messagesEl, { type: "error", message });
+        this.messagesEl.scrollTop = this.messagesEl.scrollHeight;
+        new Notice(`Codex request failed: ${message}`, 8000);
       } else {
-        this.activeAssistantEl.addClass("is-error");
-        this.activeAssistantEl.setText(`Error: ${message}`);
         new Notice(`Codex request failed: ${message}`, 8000);
       }
     } finally {
-      this.activeAssistantEl = null;
       this.setSendingState(false);
       await this.updateContextSummary();
     }
@@ -242,17 +343,18 @@ export class ChatView extends ItemView {
     }
   }
 
-  private buildThreadOptions(): {
-    workingDirectory?: string;
-    skipGitRepoCheck: boolean;
-    sandboxMode: ObsidianCodexPlugin["settings"]["sandboxMode"];
-    approvalPolicy: ObsidianCodexPlugin["settings"]["approvalPolicy"];
-  } {
+  private buildThreadOptions(): ThreadOptions {
+    const sandboxMode = this.plugin.settings.yoloMode
+      ? "danger-full-access"
+      : this.plugin.settings.sandboxMode;
+    const approvalPolicy = this.plugin.settings.yoloMode ? "never" : this.plugin.settings.approvalPolicy;
+
     return {
+      model: this.plugin.settings.model || DEFAULT_SETTINGS.model,
       workingDirectory: this.getVaultRootPath(),
       skipGitRepoCheck: this.plugin.settings.skipGitRepoCheck,
-      sandboxMode: this.plugin.settings.sandboxMode,
-      approvalPolicy: this.plugin.settings.approvalPolicy
+      sandboxMode,
+      approvalPolicy
     };
   }
 

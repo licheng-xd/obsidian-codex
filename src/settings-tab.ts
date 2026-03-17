@@ -1,5 +1,14 @@
 import { App, PluginSettingTab, Setting } from "obsidian";
 import type ObsidianCodexPlugin from "./main";
+import {
+  DEFAULT_SETTINGS,
+  patchPluginSettings,
+  toggleYoloMode,
+  updateExecutionSettings,
+  type ApprovalPolicy,
+  type PluginSettings,
+  type SandboxMode
+} from "./settings";
 
 export class ObsidianCodexSettingTab extends PluginSettingTab {
   constructor(app: App, private readonly plugin: ObsidianCodexPlugin) {
@@ -20,8 +29,19 @@ export class ObsidianCodexSettingTab extends PluginSettingTab {
           .setPlaceholder("codex")
           .setValue(this.plugin.settings.codexPath)
           .onChange(async (value) => {
-            this.plugin.settings.codexPath = value;
-            await this.plugin.saveSettings();
+            await this.savePatchedSettings({ codexPath: value });
+          });
+      });
+
+    new Setting(containerEl)
+      .setName("Model")
+      .setDesc("Default Codex model for future thread execution.")
+      .addText((text) => {
+        text
+          .setPlaceholder(DEFAULT_SETTINGS.model)
+          .setValue(this.plugin.settings.model)
+          .onChange(async (value) => {
+            await this.savePatchedSettings({ model: value || DEFAULT_SETTINGS.model });
           });
       });
 
@@ -30,8 +50,20 @@ export class ObsidianCodexSettingTab extends PluginSettingTab {
       .setDesc("Allow Codex to run inside a Vault even when it is not a git repository.")
       .addToggle((toggle) => {
         toggle.setValue(this.plugin.settings.skipGitRepoCheck).onChange(async (value) => {
-          this.plugin.settings.skipGitRepoCheck = value;
+          await this.savePatchedSettings({ skipGitRepoCheck: value });
+        });
+      });
+
+    new Setting(containerEl)
+      .setName("YOLO mode")
+      .setDesc(
+        "Persist a high-risk override for future Codex turns: approval policy 'never' and sandbox 'danger-full-access'."
+      )
+      .addToggle((toggle) => {
+        toggle.setValue(this.plugin.settings.yoloMode).onChange(async (value) => {
+          this.plugin.settings = toggleYoloMode(this.plugin.settings, value);
           await this.plugin.saveSettings();
+          this.display();
         });
       });
 
@@ -42,10 +74,14 @@ export class ObsidianCodexSettingTab extends PluginSettingTab {
         dropdown
           .addOption("read-only", "read-only")
           .addOption("workspace-write", "workspace-write")
+          .addOption("danger-full-access", "danger-full-access")
           .setValue(this.plugin.settings.sandboxMode)
           .onChange(async (value) => {
-            this.plugin.settings.sandboxMode = value as "read-only" | "workspace-write";
+            this.plugin.settings = updateExecutionSettings(this.plugin.settings, {
+              sandboxMode: value as SandboxMode
+            });
             await this.plugin.saveSettings();
+            this.display();
           });
       });
 
@@ -59,9 +95,17 @@ export class ObsidianCodexSettingTab extends PluginSettingTab {
           .addOption("on-failure", "on-failure")
           .setValue(this.plugin.settings.approvalPolicy)
           .onChange(async (value) => {
-            this.plugin.settings.approvalPolicy = value as "never" | "on-request" | "on-failure";
+            this.plugin.settings = updateExecutionSettings(this.plugin.settings, {
+              approvalPolicy: value as ApprovalPolicy
+            });
             await this.plugin.saveSettings();
+            this.display();
           });
       });
+  }
+
+  private async savePatchedSettings(patch: Partial<PluginSettings>): Promise<void> {
+    this.plugin.settings = patchPluginSettings(this.plugin.settings, patch);
+    await this.plugin.saveSettings();
   }
 }

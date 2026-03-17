@@ -45,10 +45,25 @@
   word-break: break-word;
 }
 
+.obsidian-codex-card {
+  background: var(--background-secondary);
+  border-left: 3px solid var(--interactive-accent);
+  border-radius: 12px;
+  line-height: 1.5;
+  max-width: 100%;
+  padding: 10px 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 .obsidian-codex-message.is-user {
   align-self: flex-end;
   background: var(--interactive-accent);
   color: var(--text-on-accent);
+}
+
+.obsidian-codex-message.is-assistant {
+  align-self: flex-start;
 }
 
 .obsidian-codex-message.is-status {
@@ -60,6 +75,116 @@
 .obsidian-codex-message.is-error {
   background: color-mix(in srgb, var(--color-red) 14%, var(--background-secondary));
   border: 1px solid color-mix(in srgb, var(--color-red) 30%, transparent);
+}
+
+.obsidian-codex-card.is-reasoning {
+  border-left-color: var(--text-muted);
+}
+
+.obsidian-codex-card.is-command {
+  border-left-color: var(--interactive-accent);
+}
+
+.obsidian-codex-card.is-file-change {
+  border-left-color: var(--color-yellow);
+}
+
+.obsidian-codex-card.is-activity {
+  border-left-color: color-mix(in srgb, var(--color-cyan) 65%, var(--interactive-accent));
+}
+
+.obsidian-codex-card-title {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  font-weight: 600;
+}
+
+.obsidian-codex-card-toggle {
+  background: transparent;
+  border: 0;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: var(--font-ui-smaller);
+  padding: 0;
+  text-align: left;
+}
+
+.obsidian-codex-card-body {
+  margin-top: 6px;
+}
+
+.obsidian-codex-card-detail,
+.obsidian-codex-card-status {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  margin-top: 6px;
+}
+
+.obsidian-codex-card-code {
+  font-family: var(--font-monospace);
+  margin-top: 6px;
+}
+
+.obsidian-codex-card-output {
+  background: var(--background-primary);
+  border-radius: 8px;
+  font-family: var(--font-monospace);
+  font-size: var(--font-ui-smaller);
+  margin: 8px 0 0;
+  overflow-x: auto;
+  padding: 10px;
+}
+
+.obsidian-codex-command-status {
+  font-size: var(--font-ui-smaller);
+  margin-left: 8px;
+}
+
+.obsidian-codex-command-status.is-in_progress::before {
+  animation: obsidian-codex-spin 0.8s linear infinite;
+  border: 2px solid color-mix(in srgb, var(--interactive-accent) 20%, transparent);
+  border-radius: 999px;
+  border-top-color: var(--interactive-accent);
+  content: "";
+  display: inline-block;
+  height: 10px;
+  margin-right: 6px;
+  vertical-align: middle;
+  width: 10px;
+}
+
+.obsidian-codex-command-status.is-completed {
+  color: var(--color-green);
+}
+
+.obsidian-codex-command-status.is-failed {
+  color: var(--color-red);
+}
+
+.obsidian-codex-file-change-list {
+  margin: 8px 0 0;
+  padding-left: 18px;
+}
+
+.obsidian-codex-file-change-badge {
+  border-radius: 999px;
+  font-size: var(--font-ui-smaller);
+  padding: 2px 6px;
+}
+
+.obsidian-codex-file-change-badge.is-add {
+  background: color-mix(in srgb, var(--color-green) 16%, transparent);
+  color: var(--color-green);
+}
+
+.obsidian-codex-file-change-badge.is-delete {
+  background: color-mix(in srgb, var(--color-red) 16%, transparent);
+  color: var(--color-red);
+}
+
+.obsidian-codex-file-change-badge.is-update {
+  background: color-mix(in srgb, var(--color-yellow) 18%, transparent);
+  color: var(--color-yellow);
 }
 
 .obsidian-codex-composer {
@@ -78,4 +203,100 @@
   display: flex;
   gap: 8px;
   justify-content: flex-end;
+}
+
+.obsidian-codex-thinking {
+  align-items: center;
+  display: flex;
+  gap: 6px;
+  padding: 8px 2px;
+}
+
+.obsidian-codex-thinking span {
+  animation: obsidian-codex-pulse 1s ease-in-out infinite;
+  background: var(--text-muted);
+  border-radius: 999px;
+  display: inline-block;
+  height: 8px;
+  opacity: 0.35;
+  width: 8px;
+}
+
+.obsidian-codex-thinking span:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.obsidian-codex-thinking span:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+.obsidian-codex-statusbar {
+  align-items: center;
+  background: var(--background-secondary);
+  border-radius: 12px;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) auto;
+  padding: 10px 12px;
+}
+
+.obsidian-codex-statusbar.is-yolo-active {
+  background: color-mix(in srgb, var(--color-red) 10%, var(--background-secondary));
+  border: 1px solid color-mix(in srgb, var(--color-red) 35%, transparent);
+}
+
+.obsidian-codex-statusbar-model,
+.obsidian-codex-statusbar-context,
+.obsidian-codex-statusbar-yolo {
+  display: flex;
+  gap: 8px;
+}
+
+.obsidian-codex-statusbar-model {
+  align-items: center;
+}
+
+.obsidian-codex-statusbar-model select,
+.obsidian-codex-statusbar-model input {
+  min-width: 0;
+}
+
+.obsidian-codex-statusbar-model-input[hidden] {
+  display: none;
+}
+
+.obsidian-codex-statusbar-context {
+  color: var(--text-muted);
+  flex-direction: column;
+  font-size: var(--font-ui-smaller);
+}
+
+.obsidian-codex-statusbar-yolo {
+  align-items: center;
+  font-size: var(--font-ui-smaller);
+  justify-self: end;
+}
+
+@keyframes obsidian-codex-pulse {
+  0%,
+  80%,
+  100% {
+    opacity: 0.35;
+    transform: scale(0.8);
+  }
+
+  40% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes obsidian-codex-spin {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
 }

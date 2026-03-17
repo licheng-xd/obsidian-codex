@@ -6,9 +6,11 @@ import {
   type CodexOptions,
   type RunStreamedResult,
   type ThreadEvent,
+  type ThreadItem,
   type ThreadOptions,
   type TurnOptions
 } from "@openai/codex-sdk";
+import type { MappedActivityEvent, MappedEvent, TurnUsage } from "./types";
 
 const ENV_NODE_SHEBANG = /^#!\s*\/usr\/bin\/env(?:\s+-S)?\s+node(?:\s|$)/;
 const NODE_BINARY_NAME = process.platform === "win32" ? "node.exe" : "node";
@@ -123,19 +125,95 @@ export interface CodexServiceOptions {
   createClient?: (options: CodexOptions) => CodexClientLike;
 }
 
-export function mapThreadEvent(event: ThreadEvent): { type: string; text?: string; message?: string } {
-  if (event.type === "item.completed" || event.type === "item.updated") {
-    const { item } = event;
-    if (item.type === "agent_message") {
-      return { type: "text", text: item.text };
-    }
+function buildTurnUsage(event: Extract<ThreadEvent, { type: "turn.completed" }>): TurnUsage {
+  return {
+    inputTokens: event.usage.input_tokens,
+    cachedInputTokens: event.usage.cached_input_tokens,
+    outputTokens: event.usage.output_tokens
+  };
+}
+
+function mapActivityItem(item: Extract<ThreadItem, { type: "mcp_tool_call" | "web_search" | "todo_list" }>): MappedActivityEvent {
+  if (item.type === "mcp_tool_call") {
+    return {
+      type: "activity",
+      itemId: item.id,
+      activityType: "mcp_tool_call",
+      title: `${item.server}/${item.tool}`,
+      status: item.status
+    };
   }
 
-  if (event.type === "error") {
-    return { type: "error", message: event.message };
+  if (item.type === "web_search") {
+    return {
+      type: "activity",
+      itemId: item.id,
+      activityType: "web_search",
+      title: item.query
+    };
   }
 
-  return { type: "noop" };
+  const completedCount = item.items.filter((todoItem) => todoItem.completed).length;
+  return {
+    type: "activity",
+    itemId: item.id,
+    activityType: "todo_list",
+    title: `${completedCount}/${item.items.length} tasks complete`
+  };
+}
+
+function mapThreadItem(item: ThreadItem): MappedEvent {
+  switch (item.type) {
+    case "agent_message":
+      return { type: "text", itemId: item.id, text: item.text };
+    case "reasoning":
+      return { type: "reasoning", itemId: item.id, text: item.text };
+    case "command_execution":
+      return {
+        type: "command",
+        itemId: item.id,
+        command: item.command,
+        aggregatedOutput: item.aggregated_output,
+        status: item.status,
+        exitCode: item.exit_code
+      };
+    case "file_change":
+      return {
+        type: "file_change",
+        itemId: item.id,
+        changes: item.changes,
+        status: item.status
+      };
+    case "mcp_tool_call":
+    case "web_search":
+    case "todo_list":
+      return mapActivityItem(item);
+    case "error":
+      return {
+        type: "error",
+        itemId: item.id,
+        message: item.message
+      };
+  }
+}
+
+export function mapThreadEvent(event: ThreadEvent): MappedEvent {
+  switch (event.type) {
+    case "item.started":
+    case "item.updated":
+    case "item.completed":
+      return mapThreadItem(event.item);
+    case "turn.started":
+      return { type: "turn_started" };
+    case "turn.completed":
+      return { type: "turn_completed", usage: buildTurnUsage(event) };
+    case "turn.failed":
+      return { type: "turn_failed", message: event.error.message };
+    case "error":
+      return { type: "error", message: event.message };
+    default:
+      return { type: "noop" };
+  }
 }
 
 function createCodexClient(options: CodexOptions): CodexClientLike {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { NOTE_CHAR_LIMIT, buildContextPayload } from "../src/context-builder";
+import { NOTE_CHAR_LIMIT, buildContextPayload, measureLocalContextUsage } from "../src/context-builder";
 
 describe("buildContextPayload", () => {
   it("prioritizes selection before note context", () => {
@@ -58,5 +58,32 @@ describe("buildContextPayload", () => {
 
     const noteSection = payload.split("Active note (dup.md):\n")[1] || "";
     expect(noteSection).not.toContain("Selection is");
+  });
+
+  it("measures local context usage from selection and note excerpt", () => {
+    const usage = measureLocalContextUsage({
+      userInput: "Measure this",
+      activeNotePath: "dup.md",
+      activeNoteContent: "Selection is inside this note.",
+      selectionText: "Selection is"
+    });
+
+    expect(usage).toEqual({
+      used: 29,
+      limit: NOTE_CHAR_LIMIT
+    });
+  });
+
+  it("caps measured note usage at the note char limit", () => {
+    const usage = measureLocalContextUsage({
+      userInput: "Measure this",
+      activeNotePath: "long.md",
+      activeNoteContent: "A".repeat(NOTE_CHAR_LIMIT + 100)
+    });
+
+    expect(usage).toEqual({
+      used: NOTE_CHAR_LIMIT,
+      limit: NOTE_CHAR_LIMIT
+    });
   });
 });
