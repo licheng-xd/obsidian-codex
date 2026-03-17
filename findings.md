@@ -47,6 +47,8 @@
 | Issue | Resolution |
 |-------|------------|
 | No existing project files are present in the workspace | Plan to scaffold the plugin after design approval |
+| `executing-plans` requires worktree isolation, but the workspace started without a git repository or initial commit | Initialized a repository baseline first, then created a dedicated feature worktree before implementation |
+| The implementation plan's initial `tsconfig.json` combined `include: ["tests/**/*.ts"]` with `rootDir: "src"` and `outDir: "."`, which breaks `tsc --noEmit` | Adjusted the real scaffold to use `rootDir: "."` and no `outDir`, keeping test files type-checkable |
 
 ## Resources
 - Reference repository: `https://github.com/YishenTu/claudian`

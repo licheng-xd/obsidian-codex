@@ -24,12 +24,12 @@ Phase 3
 - **Status:** complete
 
 ### Phase 3: Implementation
-- [ ] Scaffold plugin project
+- [x] Scaffold plugin project
 - [ ] Implement core plugin architecture
 - [ ] Add Codex integration flows
 - [ ] Add settings, commands, and UI entry points
 - [ ] Test incrementally
-- **Status:** pending
+- **Status:** in_progress
 
 ### Phase 4: Testing & Verification
 - [ ] Run build and automated checks
