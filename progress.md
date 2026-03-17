@@ -152,6 +152,19 @@
   - `findings.md` (updated)
   - `progress.md` (updated)
 
+### Phase 4: Plugin Load Failure Debugging
+- **Status:** complete
+- **Updated:** 2026-03-17 14:11 CST
+- Actions taken:
+  - Reproduced the plugin load failure outside Obsidian by requiring the built `main.js` with an `obsidian` stub.
+  - Isolated the failure to bundled Codex SDK code that called `createRequire(import.meta.url)` after esbuild had rewritten `import.meta` to an empty object in CJS output.
+  - Prototyped and then applied an esbuild `banner + define` fix that replaces `import.meta` with a valid file URL object for the generated bundle.
+  - Rebuilt and verified that the resulting `main.js` can now be required successfully before any plugin lifecycle code runs.
+- Files created/modified:
+  - `esbuild.config.mjs` (updated)
+  - `findings.md` (updated)
+  - `progress.md` (updated)
+
 ## Test Results
 | Test | Input | Expected | Actual | Status |
 |------|-------|----------|--------|--------|
@@ -175,6 +188,8 @@
 | Review follow-up typecheck | `npm run typecheck` | Shim-based SDK typing remains valid without MCP dependency | Succeeded | ✓ |
 | Review follow-up build | `npm run build` | Refactored service and chat view still bundle correctly | Succeeded | ✓ |
 | Bundle check | `rg -n \"@openai/codex-sdk\" main.js` | No runtime import remains in built artifact | No matches | ✓ |
+| Plugin load reproduction | `require('./main.js')` with `obsidian` stub before build fix | Reproduce startup failure outside Obsidian | Failed with `createRequire(undefined)` | ✓ |
+| Plugin load verification | `require('./main.js')` with `obsidian` stub after build fix | Built plugin loads without startup exception | `require-ok` | ✓ |
 
 ## Error Log
 | Timestamp | Error | Attempt | Resolution |

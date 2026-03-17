@@ -53,6 +53,7 @@
 | The module-level `Codex` client prevented the settings-driven `codexPath` from ever taking effect after plugin load | Replaced the singleton with an injected `CodexService` instance that reads the current path from plugin settings and recreates the client when the path changes |
 | `@modelcontextprotocol/sdk` was only present to satisfy missing third-party types, not because the plugin uses MCP directly | Replaced the package dependency with a local ambient type shim for `@modelcontextprotocol/sdk/types.js` |
 | Bundling behavior for `@openai/codex-sdk` needed confirmation before changing esbuild externals | Kept the SDK bundled: Obsidian plugins ship `main.js` as the runtime artifact, and `main.js` no longer contains a runtime import for `@openai/codex-sdk` after build |
+| Obsidian plugin load failed before `onload()` because esbuild converted `import.meta` inside the bundled Codex SDK to an empty object, so `createRequire(import.meta.url)` became `createRequire(undefined)` at module evaluation time | Updated the build config to replace `import.meta` with a bundle-local `{ url: pathToFileURL(__filename).href }`, and verified `main.js` can now be `require()`'d successfully with an `obsidian` stub |
 
 ## Resources
 - Reference repository: `https://github.com/YishenTu/claudian`

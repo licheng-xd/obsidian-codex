@@ -8,7 +8,13 @@ await esbuild.build({
   outfile: "main.js",
   format: "cjs",
   platform: "node",
-  // Obsidian plugins ship `main.js` as the runtime artifact, so Codex SDK must stay bundled.
+  banner: {
+    js: 'const __import_meta__ = { url: require("node:url").pathToFileURL(__filename).href };'
+  },
+  define: {
+    "import.meta": "__import_meta__"
+  },
+  // Obsidian plugins ship `main.js` as the runtime artifact, so Codex SDK stays bundled.
   external: ["obsidian"],
   sourcemap: production ? false : "inline",
   minify: production
