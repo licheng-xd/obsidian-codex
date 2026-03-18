@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { NOTE_CHAR_LIMIT, buildContextPayload, measureLocalContextUsage } from "../src/context-builder";
+import {
+  NOTE_CHAR_LIMIT,
+  buildContextPayload,
+  deriveDefaultSaveDirectory,
+  measureLocalContextUsage
+} from "../src/context-builder";
 
 describe("buildContextPayload", () => {
   it("prioritizes selection before note context", () => {
@@ -21,7 +26,9 @@ describe("buildContextPayload", () => {
       userInput: "Just chat."
     });
 
-    expect(payload).toBe("User request:\nJust chat.");
+    expect(payload).toContain("User request:\nJust chat.");
+    expect(payload).toContain("Local save guidance:");
+    expect(payload).toContain("default to the vault root");
   });
 
   it("includes note excerpt when no selection is provided", () => {
@@ -35,6 +42,29 @@ describe("buildContextPayload", () => {
     expect(payload).toContain("First line.");
   });
 
+  it("defaults local saves to the current note sibling directory", () => {
+    const payload = buildContextPayload({
+      userInput: "Save this report locally",
+      activeNotePath: "Projects/AI/note.md",
+      activeNoteContent: "Summary"
+    });
+
+    expect(payload).toContain("Local save guidance:");
+    expect(payload).toContain("default to the current note's sibling directory: Projects/AI");
+    expect(payload).toContain("Do not place new files in the vault root by default.");
+  });
+
+  it("defaults local saves to the vault root for root-level notes", () => {
+    const payload = buildContextPayload({
+      userInput: "Save this report locally",
+      activeNotePath: "note.md",
+      activeNoteContent: "Summary"
+    });
+
+    expect(payload).toContain("default to the vault root.");
+    expect(payload).toContain("current note already lives in the vault root");
+  });
+
   it("truncates overly long notes according to the char limit", () => {
     const longNote = "A".repeat(NOTE_CHAR_LIMIT + 100);
     const payload = buildContextPayload({
@@ -43,7 +73,10 @@ describe("buildContextPayload", () => {
       activeNoteContent: longNote
     });
 
-    const excerpt = payload.split("Active note (long.md):\n")[1] || "";
+    const excerpt =
+      payload
+        .split("Active note (long.md):\n")[1]
+        ?.split("\n\nLocal save guidance:")[0] ?? "";
     expect(excerpt.length).toBeLessThanOrEqual(NOTE_CHAR_LIMIT);
   });
 
@@ -56,7 +89,10 @@ describe("buildContextPayload", () => {
       selectionText: "Selection is"
     });
 
-    const noteSection = payload.split("Active note (dup.md):\n")[1] || "";
+    const noteSection =
+      payload
+        .split("Active note (dup.md):\n")[1]
+        ?.split("\n\nLocal save guidance:")[0] ?? "";
     expect(noteSection).not.toContain("Selection is");
   });
 
@@ -85,5 +121,19 @@ describe("buildContextPayload", () => {
       used: NOTE_CHAR_LIMIT,
       limit: NOTE_CHAR_LIMIT
     });
+  });
+});
+
+describe("deriveDefaultSaveDirectory", () => {
+  it("returns the sibling directory for nested notes", () => {
+    expect(deriveDefaultSaveDirectory("Projects/AI/note.md")).toBe("Projects/AI");
+  });
+
+  it("returns an empty string for root-level notes", () => {
+    expect(deriveDefaultSaveDirectory("note.md")).toBe("");
+  });
+
+  it("returns null when there is no active note", () => {
+    expect(deriveDefaultSaveDirectory()).toBeNull();
   });
 });

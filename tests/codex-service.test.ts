@@ -38,6 +38,9 @@ function createFakeClient(thread: ThreadLike, optionsLog: CodexOptions[]): (opti
     return {
       startThread(_threadOptions?: ThreadOptions) {
         return thread;
+      },
+      resumeThread(_id: string, _threadOptions?: ThreadOptions) {
+        return thread;
       }
     };
   };
@@ -321,6 +324,35 @@ describe("CodexService", () => {
 
     expect(seenInput).toBe("hello");
     expect(received).toEqual(streamedEvents);
+  });
+
+  it("can resume an existing thread id", () => {
+    const optionsLog: CodexOptions[] = [];
+    let resumedThreadId = "";
+    let resumedOptions: ThreadOptions | undefined;
+    const thread = createFakeThread();
+    const service = new CodexService({
+      getCodexPath: () => "",
+      createClient: (options) => {
+        optionsLog.push(options);
+        return {
+          startThread() {
+            return createFakeThread();
+          },
+          resumeThread(id, threadOptions) {
+            resumedThreadId = id;
+            resumedOptions = threadOptions;
+            return thread;
+          }
+        };
+      }
+    });
+
+    service.resumeThread("thread-42", { workingDirectory: "/vault" });
+
+    expect(optionsLog).toHaveLength(1);
+    expect(resumedThreadId).toBe("thread-42");
+    expect(resumedOptions).toEqual({ workingDirectory: "/vault" });
   });
 });
 

@@ -144,7 +144,8 @@ npm run build
 - `Command + Enter`：换行
 - Windows / Linux 下 `Ctrl + Enter`：换行
 - `Cancel`：中断当前流式回复
-- `New Chat`：清空当前侧边栏对话并重建会话
+- 重新打开侧边栏或重启 Obsidian 时，默认恢复最后一个会话
+- `New Chat`：清空当前侧边栏对话并显式开启一个新会话
 - 底部托盘提供模型、推理强度、Vault、YOLO 一体化控制
 
 ### 上下文注入规则
@@ -276,8 +277,7 @@ npm run build
 
 ## 已知限制
 
-- 当前聊天会话只在当前插件实例生命周期内维护
-- 还没有会话恢复 UI，也没有历史会话面板
+- 当前只恢复“最后一个会话”，还没有历史会话列表或会话切换面板
 - 当前上下文源仅包含当前笔记与当前选区
 - 还没有对回复内容执行“写回笔记”的编辑动作
 - 还没有移动端适配
@@ -287,12 +287,13 @@ npm run build
 - 设计文档：`docs/plans/2026-03-16-obsidian-codex-design.md`
 - 实现计划：`docs/plans/2026-03-16-obsidian-codex-implementation-plan.md`
 - 架构决策：`docs/adr/ADR-2026-03-16-codex-backend.md`
+- 会话恢复决策：`docs/adr/2026-03-18-persist-last-session.md`
 
 ## 路线图
 
 下一阶段优先考虑：
 
-- 会话持久化与恢复
+- 历史会话列表与会话切换
 - 更细粒度的上下文选择
 - 内联编辑 / 应用修改
 - Prompt 模板与命令快捷入口

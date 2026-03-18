@@ -1,6 +1,7 @@
 import {
   FileSystemAdapter,
   ItemView,
+  MarkdownRenderer,
   MarkdownView,
   Notice,
   WorkspaceLeaf,
@@ -8,36 +9,76 @@ import {
 } from "obsidian";
 import type { ThreadOptions } from "@openai/codex-sdk";
 import { shouldSubmitFromKeydown } from "./chat-input";
+import { renderMarkdownMessage } from "./assistant-markdown";
+import type {
+  PersistedAssistantEntry,
+  PersistedChatEntry,
+  PersistedSummaryItem
+} from "./chat-session";
 import {
   NOTE_CHAR_LIMIT,
+  THREAD_CONTEXT_CHAR_LIMIT,
   buildContextPayload,
   measureLocalContextUsage,
   type ContextInput
 } from "./context-builder";
-import { getContextSummaryLines } from "./context-summary";
 import { CODEX_ICON } from "./codex-icon";
 import { mapThreadEvent } from "./codex-service";
 import { renderEventCard } from "./event-cards";
+import {
+  estimateMappedEventChars,
+  summarizeAssistantSystemEvents,
+  type SummarizableAssistantEvent
+} from "./event-summary";
 import type ObsidianCodexPlugin from "./main";
 import { DEFAULT_SETTINGS, patchPluginSettings, toggleYoloMode } from "./settings";
 import { StatusBar } from "./status-bar";
-import type { ContextUsage, MappedEvent } from "./types";
+import type {
+  ContextUsage,
+  MappedActivityEvent,
+  MappedCommandEvent,
+  MappedErrorEvent,
+  MappedFileChangeEvent,
+  MappedReasoningEvent,
+  MappedSummaryEvent,
+  MappedTextEvent
+} from "./types";
 import { getWelcomeTitle } from "./welcome-title";
 
 export const CODEX_CHAT_VIEW_TYPE = "obsidian-codex-chat";
 const SELECTION_CHANGE_DEBOUNCE_MS = 120;
 
-type ChatMessageRole = "user" | "assistant" | "status";
+type ChatMessageRole = "user" | "status";
+
+interface AssistantTurnElements {
+  rootEl: HTMLDivElement;
+  metaEl: HTMLDivElement;
+  metaLabelEl: HTMLSpanElement;
+  metaSignalEl: HTMLSpanElement;
+  contentEl: HTMLDivElement;
+  eventsEl: HTMLDivElement;
+  startedAt: number;
+  metaFinalized: boolean;
+}
+
+type VisibleAssistantEvent =
+  | MappedTextEvent
+  | MappedReasoningEvent
+  | MappedCommandEvent
+  | MappedFileChangeEvent
+  | MappedActivityEvent
+  | MappedErrorEvent
+  | { type: "turn_failed"; message: string };
 
 export class ChatView extends ItemView {
-  private contextEl!: HTMLDivElement;
   private emptyStateEl!: HTMLDivElement;
   private messagesEl!: HTMLDivElement;
   private inputEl!: HTMLTextAreaElement;
-  private sendButtonEl!: HTMLButtonElement;
   private cancelButtonEl!: HTMLButtonElement;
   private newChatButtonEl!: HTMLButtonElement;
   private statusBar: StatusBar | null = null;
+  private sessionEntries: PersistedChatEntry[] = [];
+  private activeThreadId: string | null = null;
   private sessionStarted = false;
   private isSending = false;
   private wasCancelled = false;
@@ -45,6 +86,8 @@ export class ChatView extends ItemView {
   private contextUsage: ContextUsage = {
     localCharsUsed: 0,
     localCharsLimit: NOTE_CHAR_LIMIT,
+    threadCharsUsedEstimate: 0,
+    threadCharsLimitEstimate: THREAD_CONTEXT_CHAR_LIMIT,
     sdkInputTokens: null,
     sdkCachedInputTokens: null,
     sdkOutputTokens: null
@@ -68,6 +111,7 @@ export class ChatView extends ItemView {
 
   async onOpen(): Promise<void> {
     this.render();
+    await this.restoreLastSession();
     void this.updateContextSummary();
     this.registerEvent(this.app.workspace.on("active-leaf-change", () => void this.updateContextSummary()));
     this.registerDomEvent(document, "selectionchange", () => this.scheduleContextSummaryUpdate());
@@ -100,37 +144,31 @@ export class ChatView extends ItemView {
 
     this.messagesEl = stageEl.createDiv({ cls: "obsidian-codex-messages" });
 
-    const trayEl = contentEl.createDiv({ cls: "obsidian-codex-tray" });
-    const trayHeaderEl = trayEl.createDiv({ cls: "obsidian-codex-tray-header" });
-    this.contextEl = trayHeaderEl.createDiv({ cls: "obsidian-codex-context" });
-
-    const trayActionsEl = trayHeaderEl.createDiv({ cls: "obsidian-codex-tray-actions" });
+    const stageActionsEl = contentEl.createDiv({ cls: "obsidian-codex-stage-actions" });
     this.newChatButtonEl = this.createTrayActionButton(
-      trayActionsEl,
+      stageActionsEl,
       "plus",
       "New Chat",
-      () => this.resetConversation()
+      () => this.resetConversation(),
+      false,
+      "is-new-chat"
     );
     this.cancelButtonEl = this.createTrayActionButton(
-      trayActionsEl,
+      stageActionsEl,
       "square",
       "Cancel current turn",
-      () => this.handleCancel()
-    );
-    this.sendButtonEl = this.createTrayActionButton(
-      trayActionsEl,
-      "arrow-up",
-      "Send message",
-      () => void this.handleSend(),
-      true
+      () => this.handleCancel(),
+      false,
+      "is-cancel"
     );
 
+    const trayEl = contentEl.createDiv({ cls: "obsidian-codex-tray" });
     const inputShellEl = trayEl.createDiv({ cls: "obsidian-codex-input-shell" });
     this.inputEl = inputShellEl.createEl("textarea", {
       cls: "obsidian-codex-input"
     });
     this.inputEl.placeholder = "How can I help you today?";
-    this.inputEl.rows = 5;
+    this.inputEl.rows = 4;
 
     this.registerDomEvent(this.inputEl, "focus", () => void this.updateContextSummary());
     this.registerDomEvent(this.inputEl, "input", () => this.updateComposerState());
@@ -186,12 +224,15 @@ export class ChatView extends ItemView {
     icon: string,
     label: string,
     onClick: () => void,
-    primary = false
+    primary = false,
+    variantClassName?: string
   ): HTMLButtonElement {
     const buttonEl = containerEl.createEl("button", {
-      cls: primary
-        ? "obsidian-codex-tray-action is-primary"
-        : "obsidian-codex-tray-action"
+      cls: [
+        "obsidian-codex-tray-action",
+        primary ? "is-primary" : "",
+        variantClassName ?? ""
+      ].filter(Boolean).join(" ")
     });
     buttonEl.type = "button";
     buttonEl.ariaLabel = label;
@@ -201,9 +242,60 @@ export class ChatView extends ItemView {
     return buttonEl;
   }
 
+  private createAssistantTurn(): AssistantTurnElements {
+    const rootEl = this.messagesEl.createDiv({ cls: "obsidian-codex-turn" });
+
+    const metaEl = rootEl.createDiv({ cls: "obsidian-codex-turn-meta is-live" });
+    const metaLabelEl = metaEl.createSpan({ cls: "obsidian-codex-turn-meta-label", text: "Thinking" });
+    const metaSignalEl = metaEl.createSpan({ cls: "obsidian-codex-turn-meta-signal" });
+    for (let index = 0; index < 3; index += 1) {
+      metaSignalEl.createSpan();
+    }
+
+    const contentEl = rootEl.createDiv({ cls: "obsidian-codex-turn-content" });
+    const eventsEl = rootEl.createDiv({ cls: "obsidian-codex-turn-events" });
+
+    this.refreshCanvasState();
+    this.scrollMessagesToBottom();
+
+    return {
+      rootEl,
+      metaEl,
+      metaLabelEl,
+      metaSignalEl,
+      contentEl,
+      eventsEl,
+      startedAt: Date.now(),
+      metaFinalized: false
+    };
+  }
+
+  private finalizeAssistantTurnMeta(turn: AssistantTurnElements, interrupted = false): void {
+    if (turn.metaFinalized) {
+      return;
+    }
+
+    turn.metaFinalized = true;
+    turn.metaEl.classList.remove("is-live");
+    turn.metaEl.classList.toggle("is-interrupted", interrupted);
+    const elapsedSeconds = Math.max(0, Math.round((Date.now() - turn.startedAt) / 1000));
+    turn.metaLabelEl.textContent = interrupted
+      ? `Interrupted after ${elapsedSeconds}s`
+      : `Thought for ${elapsedSeconds}s`;
+    turn.metaSignalEl.remove();
+  }
+
+  private removeAssistantTurnIfEmpty(turn: AssistantTurnElements): void {
+    const hasBody =
+      turn.contentEl.childElementCount > 0 ||
+      turn.eventsEl.childElementCount > 0;
+    if (!hasBody) {
+      turn.rootEl.remove();
+      this.refreshCanvasState();
+    }
+  }
+
   private updateComposerState(): void {
-    const hasPendingInput = this.inputEl.value.trim().length > 0;
-    this.sendButtonEl.disabled = this.isSending || !hasPendingInput;
     this.cancelButtonEl.disabled = !this.isSending;
     this.inputEl.disabled = this.isSending;
   }
@@ -220,11 +312,15 @@ export class ChatView extends ItemView {
 
   private resetConversation(): void {
     this.plugin.codexService.cancelCurrentTurn();
+    this.activeThreadId = null;
+    this.sessionEntries = [];
     this.sessionStarted = false;
     this.wasCancelled = false;
     this.messagesEl.empty();
     this.contextUsage = {
       ...this.contextUsage,
+      threadCharsUsedEstimate: 0,
+      threadCharsLimitEstimate: THREAD_CONTEXT_CHAR_LIMIT,
       sdkInputTokens: null,
       sdkCachedInputTokens: null,
       sdkOutputTokens: null
@@ -232,40 +328,156 @@ export class ChatView extends ItemView {
     this.setSendingState(false);
     this.statusBar?.updateContextUsage(this.contextUsage);
     this.refreshCanvasState();
+    void this.plugin.clearLastSession();
     void this.updateContextSummary();
   }
 
-  private appendMessage(role: ChatMessageRole, text: string): HTMLDivElement {
+  private appendMessage(
+    role: ChatMessageRole,
+    text: string,
+    persist = true
+  ): HTMLDivElement {
     const messageEl = this.messagesEl.createDiv({
       cls: `obsidian-codex-message is-${role}`
     });
     messageEl.setText(text);
+    if (persist) {
+      this.sessionEntries.push({ type: role, text });
+      void this.persistLastSession();
+    }
     this.refreshCanvasState();
     this.scrollMessagesToBottom();
     return messageEl;
   }
 
-  private appendThinkingIndicator(): HTMLDivElement {
-    const thinkingEl = this.messagesEl.ownerDocument.createElement("div");
-    thinkingEl.className = "obsidian-codex-thinking";
-
-    const labelEl = thinkingEl.ownerDocument.createElement("span");
-    labelEl.className = "obsidian-codex-thinking-label";
-    labelEl.textContent = "Thinking";
-    thinkingEl.appendChild(labelEl);
-
-    const dotsEl = thinkingEl.ownerDocument.createElement("div");
-    dotsEl.className = "obsidian-codex-thinking-dots";
-    for (let index = 0; index < 3; index += 1) {
-      const dotEl = thinkingEl.ownerDocument.createElement("span");
-      dotsEl.appendChild(dotEl);
-    }
-    thinkingEl.appendChild(dotsEl);
-
-    this.messagesEl.appendChild(thinkingEl);
+  private async renderPersistedAssistantTurn(entry: PersistedAssistantEntry): Promise<void> {
+    const turn = this.createAssistantTurn();
+    turn.metaFinalized = true;
+    turn.metaEl.classList.remove("is-live");
+    turn.metaLabelEl.textContent = entry.metaLabel;
+    turn.metaSignalEl.remove();
+    await renderMarkdownMessage(
+      turn.contentEl.createDiv({ cls: "obsidian-codex-response markdown-rendered" }),
+      entry.contentMarkdown,
+      this.getMarkdownSourcePath(),
+      (markdown, scratchEl, sourcePath) =>
+        MarkdownRenderer.render(this.app, markdown, scratchEl, sourcePath, this)
+    );
+    this.renderPersistedSummaryItems(turn.eventsEl, entry.summaries);
     this.refreshCanvasState();
     this.scrollMessagesToBottom();
-    return thinkingEl;
+  }
+
+  private renderPersistedSummaryItems(
+    containerEl: HTMLElement,
+    summaries: ReadonlyArray<PersistedSummaryItem>
+  ): void {
+    for (const [index, summary] of summaries.entries()) {
+      const event: MappedSummaryEvent = {
+        type: "summary",
+        itemId: `persisted-summary-${index}`,
+        label: summary.label,
+        preview: summary.preview,
+        lines: summary.lines
+      };
+      renderEventCard(containerEl, event);
+    }
+  }
+
+  private async restoreLastSession(): Promise<void> {
+    const session = this.plugin.lastSession;
+    if (!session) {
+      return;
+    }
+
+    this.sessionEntries = [...session.entries];
+    this.activeThreadId = session.threadId;
+    this.contextUsage = {
+      ...this.contextUsage,
+      threadCharsUsedEstimate: session.contextUsage.threadCharsUsedEstimate,
+      sdkInputTokens: session.contextUsage.sdkInputTokens,
+      sdkCachedInputTokens: session.contextUsage.sdkCachedInputTokens,
+      sdkOutputTokens: session.contextUsage.sdkOutputTokens
+    };
+    this.statusBar?.updateContextUsage(this.contextUsage);
+
+    for (const entry of session.entries) {
+      if (entry.type === "assistant") {
+        await this.renderPersistedAssistantTurn(entry);
+      } else {
+        this.appendMessage(entry.type, entry.text, false);
+      }
+    }
+
+    const threadOptions = this.buildThreadOptions();
+    if (threadOptions.workingDirectory) {
+      this.plugin.codexService.resumeThread(session.threadId, threadOptions);
+      this.sessionStarted = true;
+    }
+  }
+
+  private async persistLastSession(): Promise<void> {
+    if (!this.activeThreadId || this.sessionEntries.length === 0) {
+      return;
+    }
+
+    await this.plugin.saveLastSession({
+      threadId: this.activeThreadId,
+      entries: this.sessionEntries,
+      contextUsage: {
+        threadCharsUsedEstimate: this.contextUsage.threadCharsUsedEstimate,
+        sdkInputTokens: this.contextUsage.sdkInputTokens,
+        sdkCachedInputTokens: this.contextUsage.sdkCachedInputTokens,
+        sdkOutputTokens: this.contextUsage.sdkOutputTokens
+      }
+    });
+  }
+
+  private snapshotSummaryItems(
+    summaries: ReadonlyArray<MappedSummaryEvent>
+  ): PersistedSummaryItem[] {
+    return summaries.map((summary) => ({
+      label: summary.label,
+      preview: summary.preview,
+      lines: [...summary.lines]
+    }));
+  }
+
+  private async renderAssistantText(
+    containerEl: HTMLElement,
+    event: MappedTextEvent,
+    existingEl?: HTMLElement
+  ): Promise<HTMLDivElement> {
+    const cardEl = (existingEl ?? containerEl.ownerDocument.createElement("div")) as HTMLDivElement;
+    cardEl.className = "obsidian-codex-response markdown-rendered";
+    if (!cardEl.parentElement) {
+      containerEl.appendChild(cardEl);
+    }
+
+    await renderMarkdownMessage(
+      cardEl,
+      event.text,
+      this.getMarkdownSourcePath(),
+      (markdown, scratchEl, sourcePath) =>
+        MarkdownRenderer.render(this.app, markdown, scratchEl, sourcePath, this)
+    );
+
+    return cardEl;
+  }
+
+  private renderSummarizedAssistantEvents(
+    containerEl: HTMLElement,
+    events: ReadonlyArray<SummarizableAssistantEvent>
+  ): void {
+    const summaryEvents = summarizeAssistantSystemEvents(events);
+    if (summaryEvents.length === 0) {
+      return;
+    }
+
+    containerEl.replaceChildren();
+    for (const event of summaryEvents) {
+      renderEventCard(containerEl, event);
+    }
   }
 
   private setSendingState(isSending: boolean): void {
@@ -275,19 +487,6 @@ export class ChatView extends ItemView {
 
   private async updateContextSummary(): Promise<void> {
     const context = await this.collectContext("");
-    const summaryLines = getContextSummaryLines({
-      vaultRootPath: this.getVaultRootPath(),
-      activeNotePath: context.activeNotePath,
-      selectionText: context.selectionText
-    });
-
-    this.contextEl.replaceChildren();
-    for (const line of summaryLines) {
-      const lineEl = this.contextEl.createDiv({ cls: "obsidian-codex-context-line" });
-      lineEl.createSpan({ cls: "obsidian-codex-context-label", text: `${line.label}:` });
-      lineEl.createSpan({ cls: "obsidian-codex-context-value", text: line.value });
-    }
-
     const localUsage = measureLocalContextUsage(context);
     this.contextUsage = {
       ...this.contextUsage,
@@ -321,29 +520,42 @@ export class ChatView extends ItemView {
     this.statusBar?.updateContextUsage(this.contextUsage);
 
     if (!this.sessionStarted) {
-      this.plugin.codexService.createThread(threadOptions);
+      if (this.activeThreadId) {
+        this.plugin.codexService.resumeThread(this.activeThreadId, threadOptions);
+      } else {
+        this.plugin.codexService.createThread(threadOptions);
+      }
       this.sessionStarted = true;
     }
 
     this.wasCancelled = false;
     this.appendMessage("user", userInput);
-    const thinkingEl = this.appendThinkingIndicator();
+    const assistantTurn = this.createAssistantTurn();
     this.inputEl.value = "";
     this.setSendingState(true);
 
     const eventElements = new Map<string, HTMLElement>();
+    const latestSystemEvents = new Map<string, SummarizableAssistantEvent>();
+    const eventSizeByItemId = new Map<string, number>();
+    const trackEventChars = (itemId: string, size: number): number => {
+      const previousSize = eventSizeByItemId.get(itemId) ?? 0;
+      const nextSize = Math.max(previousSize, size);
+      eventSizeByItemId.set(itemId, nextSize);
+      return nextSize - previousSize;
+    };
+    const turnPromptChars = prompt.length;
+    let turnGeneratedChars = 0;
+    let assistantMarkdown = "";
     let sawVisibleAssistantEvent = false;
     let streamErrorHandled = false;
 
-    const removeThinkingIndicator = (): void => {
-      if (thinkingEl.parentElement) {
-        thinkingEl.remove();
-        this.refreshCanvasState();
-      }
-    };
-
     try {
       for await (const event of this.plugin.codexService.sendMessage(prompt, threadOptions)) {
+        if (event.type === "thread.started") {
+          this.activeThreadId = event.thread_id;
+          void this.persistLastSession();
+        }
+
         const mapped = mapThreadEvent(event);
 
         if (mapped.type === "noop" || mapped.type === "turn_started") {
@@ -351,56 +563,123 @@ export class ChatView extends ItemView {
         }
 
         if (mapped.type === "turn_completed") {
+          if (!assistantTurn.metaFinalized) {
+            this.finalizeAssistantTurnMeta(assistantTurn);
+          }
+          const summaryEvents = summarizeAssistantSystemEvents(Array.from(latestSystemEvents.values()));
+          if (latestSystemEvents.size > 0) {
+            this.renderSummarizedAssistantEvents(
+              assistantTurn.eventsEl,
+              Array.from(latestSystemEvents.values())
+            );
+          }
           this.contextUsage = {
             ...this.contextUsage,
+            threadCharsUsedEstimate:
+              this.contextUsage.threadCharsUsedEstimate + turnPromptChars + turnGeneratedChars,
             sdkInputTokens: mapped.usage.inputTokens,
             sdkCachedInputTokens: mapped.usage.cachedInputTokens,
             sdkOutputTokens: mapped.usage.outputTokens
           };
           this.statusBar?.updateContextUsage(this.contextUsage);
+          if (assistantMarkdown || summaryEvents.length > 0) {
+            this.sessionEntries.push({
+              type: "assistant",
+              metaLabel: assistantTurn.metaLabelEl.textContent ?? "Thought",
+              contentMarkdown: assistantMarkdown,
+              summaries: this.snapshotSummaryItems(summaryEvents)
+            });
+            await this.persistLastSession();
+          }
+          continue;
+        }
+
+        if (mapped.type === "reasoning") {
+          latestSystemEvents.set(mapped.itemId, mapped);
+          turnGeneratedChars += trackEventChars(mapped.itemId, estimateMappedEventChars(mapped));
+          sawVisibleAssistantEvent = true;
+          const existingEl = eventElements.get(mapped.itemId);
+          const cardEl = renderEventCard(assistantTurn.eventsEl, mapped, existingEl);
+          eventElements.set(mapped.itemId, cardEl);
+          this.scrollMessagesToBottom();
           continue;
         }
 
         if (mapped.type === "error" || mapped.type === "turn_failed") {
-          removeThinkingIndicator();
-          renderEventCard(this.messagesEl, mapped);
+          this.finalizeAssistantTurnMeta(assistantTurn);
+          renderEventCard(assistantTurn.eventsEl, mapped);
           this.refreshCanvasState();
           this.scrollMessagesToBottom();
           streamErrorHandled = true;
           throw new Error(mapped.message);
         }
 
-        removeThinkingIndicator();
-        sawVisibleAssistantEvent = true;
+        if (!sawVisibleAssistantEvent) {
+          this.finalizeAssistantTurnMeta(assistantTurn);
+          sawVisibleAssistantEvent = true;
+        }
+
         const existingEl = "itemId" in mapped ? eventElements.get(mapped.itemId) : undefined;
-        const cardEl = renderEventCard(
-          this.messagesEl,
-          mapped as Exclude<
-            MappedEvent,
-            { type: "turn_started" | "turn_completed" | "turn_failed" | "error" | "noop" }
-          >,
-          existingEl
-        );
+        const targetContainer =
+          mapped.type === "text" ? assistantTurn.contentEl : assistantTurn.eventsEl;
+        const cardEl =
+          mapped.type === "text"
+            ? await this.renderAssistantText(
+                targetContainer,
+                mapped,
+                existingEl
+              )
+            : renderEventCard(
+                targetContainer,
+                mapped as VisibleAssistantEvent,
+                existingEl
+              );
+        if (mapped.type === "text") {
+          assistantMarkdown = mapped.text;
+        }
         if ("itemId" in mapped) {
           eventElements.set(mapped.itemId, cardEl);
+          if (mapped.type !== "text") {
+            latestSystemEvents.set(mapped.itemId, mapped as SummarizableAssistantEvent);
+          }
+          turnGeneratedChars += trackEventChars(mapped.itemId, estimateMappedEventChars(mapped));
         }
+
         this.refreshCanvasState();
         this.scrollMessagesToBottom();
       }
 
-      removeThinkingIndicator();
-
       if (!sawVisibleAssistantEvent && !streamErrorHandled) {
+        this.removeAssistantTurnIfEmpty(assistantTurn);
         this.appendMessage("status", "No response received.");
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       if (this.wasCancelled) {
-        removeThinkingIndicator();
+        if (sawVisibleAssistantEvent) {
+          this.finalizeAssistantTurnMeta(assistantTurn, true);
+          if (assistantMarkdown || latestSystemEvents.size > 0) {
+            const summaryEvents = summarizeAssistantSystemEvents(Array.from(latestSystemEvents.values()));
+            this.renderSummarizedAssistantEvents(
+              assistantTurn.eventsEl,
+              Array.from(latestSystemEvents.values())
+            );
+            this.sessionEntries.push({
+              type: "assistant",
+              metaLabel: assistantTurn.metaLabelEl.textContent ?? "Interrupted",
+              contentMarkdown: assistantMarkdown,
+              summaries: this.snapshotSummaryItems(summaryEvents)
+            });
+            await this.persistLastSession();
+          }
+        } else {
+          assistantTurn.rootEl.remove();
+          this.refreshCanvasState();
+        }
         this.appendMessage("status", "Interrupted.");
       } else if (!streamErrorHandled) {
-        removeThinkingIndicator();
-        renderEventCard(this.messagesEl, { type: "error", message });
+        this.finalizeAssistantTurnMeta(assistantTurn);
+        renderEventCard(assistantTurn.eventsEl, { type: "error", message });
         this.refreshCanvasState();
         this.scrollMessagesToBottom();
         new Notice(`Codex request failed: ${message}`, 8000);
@@ -456,6 +735,10 @@ export class ChatView extends ItemView {
   private getVaultRootPath(): string | undefined {
     const adapter = this.app.vault.adapter;
     return adapter instanceof FileSystemAdapter ? adapter.getBasePath() : undefined;
+  }
+
+  private getMarkdownSourcePath(): string {
+    return this.app.workspace.getActiveFile()?.path ?? "";
   }
 
   private async collectContext(userInput: string): Promise<ContextInput> {

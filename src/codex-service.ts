@@ -113,11 +113,13 @@ export async function probeCodexCli(command = "codex"): Promise<string> {
 }
 
 export interface ThreadLike {
+  readonly id?: string | null;
   runStreamed(input: string, turnOptions?: TurnOptions): Promise<RunStreamedResult>;
 }
 
 export interface CodexClientLike {
   startThread(options?: ThreadOptions): ThreadLike;
+  resumeThread(id: string, options?: ThreadOptions): ThreadLike;
 }
 
 export interface CodexServiceOptions {
@@ -231,6 +233,13 @@ export class CodexService {
   createThread(threadOptions: ThreadOptions): ThreadLike {
     const client = this.getOrCreateClient();
     this.currentThread = client.startThread(threadOptions);
+    this.currentAbortController = null;
+    return this.currentThread;
+  }
+
+  resumeThread(threadId: string, threadOptions: ThreadOptions): ThreadLike {
+    const client = this.getOrCreateClient();
+    this.currentThread = client.resumeThread(threadId, threadOptions);
     this.currentAbortController = null;
     return this.currentThread;
   }

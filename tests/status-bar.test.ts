@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { MODEL_OPTIONS } from "../src/types";
 import {
   formatContextLocal,
   formatLastTurnUsage,
@@ -8,8 +9,9 @@ import {
 
 describe("status-bar helpers", () => {
   it("formats local context usage", () => {
-    expect(formatContextLocal(0, 4000)).toBe("Local: 0 / 4k");
-    expect(formatContextLocal(2100, 4000)).toBe("Local: 2.1k / 4k");
+    expect(formatContextLocal(0, 4000)).toBe("Ctx 0% · 0");
+    expect(formatContextLocal(2100, 4000)).toBe("Ctx 53% · 2.1k");
+    expect(formatContextLocal(2100, 4000, 900, 40000)).toBe("Ctx 8% · 3k");
   });
 
   it("formats last turn usage", () => {
@@ -24,6 +26,13 @@ describe("status-bar helpers", () => {
     expect(getModelSelectLabel("gpt-5.4")).toBe("GPT-5.4");
     expect(getModelSelectLabel("gpt-5.3-codex")).toBe("GPT-5.3-Codex");
     expect(getModelSelectLabel("custom-model")).toBe("custom-model");
+  });
+
+  it("keeps only the curated quick model options", () => {
+    expect(MODEL_OPTIONS.map((option) => option.id)).toEqual([
+      "gpt-5.4",
+      "gpt-5.3-codex"
+    ]);
   });
 
   it("maps reasoning effort to Chinese labels", () => {

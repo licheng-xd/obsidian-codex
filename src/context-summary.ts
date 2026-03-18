@@ -11,16 +11,7 @@ export interface ContextSummaryLine {
 
 export function getContextSummaryLines(input: ContextSummaryInput): ContextSummaryLine[] {
   const vaultRootLabel = input.vaultRootPath ?? "Unavailable";
-  const noteLabel = input.activeNotePath ?? "No active note";
-  const selectionLabel = input.selectionText
-    ? `${input.selectionText.length} chars selected`
-    : "No selection";
-
-  return [
-    { label: "Vault root", value: vaultRootLabel },
-    { label: "Current note", value: noteLabel },
-    { label: "Selection", value: selectionLabel }
-  ];
+  return [{ label: "Vault root", value: vaultRootLabel }];
 }
 
 export function formatContextSummary(input: ContextSummaryInput): string {

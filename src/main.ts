@@ -1,14 +1,17 @@
 import { Notice, Plugin } from "obsidian";
+import type { PersistedChatSession } from "./chat-session";
 import { ChatView, CODEX_CHAT_VIEW_TYPE } from "./chat-view";
 import { CODEX_ICON } from "./codex-icon";
 import { CodexService, probeCodexCli } from "./codex-service";
 import { registerCodexIcon } from "./icons";
+import { readPersistedPluginData, writePersistedPluginData } from "./plugin-state";
 import { type PluginSettings, sanitizePluginSettings } from "./settings";
 import { ObsidianCodexSettingTab } from "./settings-tab";
 
 export default class ObsidianCodexPlugin extends Plugin {
   settings!: PluginSettings;
   codexService!: CodexService;
+  lastSession: PersistedChatSession | null = null;
 
   async onload(): Promise<void> {
     await this.loadSettings();
@@ -52,11 +55,23 @@ export default class ObsidianCodexPlugin extends Plugin {
 
   async loadSettings(): Promise<void> {
     const loaded = await this.loadData();
-    this.settings = sanitizePluginSettings(loaded as Partial<PluginSettings> | null | undefined);
+    const persisted = readPersistedPluginData(loaded);
+    this.settings = persisted.settings;
+    this.lastSession = persisted.lastSession;
   }
 
   async saveSettings(): Promise<void> {
-    await this.saveData(this.settings);
+    await this.savePluginData();
+  }
+
+  async saveLastSession(session: PersistedChatSession): Promise<void> {
+    this.lastSession = session;
+    await this.savePluginData();
+  }
+
+  async clearLastSession(): Promise<void> {
+    this.lastSession = null;
+    await this.savePluginData();
   }
 
   private async activateChatView(): Promise<void> {
@@ -74,5 +89,9 @@ export default class ObsidianCodexPlugin extends Plugin {
     }
 
     await this.app.workspace.revealLeaf(leaf);
+  }
+
+  private async savePluginData(): Promise<void> {
+    await this.saveData(writePersistedPluginData(this.settings, this.lastSession));
   }
 }

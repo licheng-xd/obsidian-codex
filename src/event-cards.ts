@@ -1,13 +1,15 @@
-import type { MappedEvent } from "./types";
+import type { MappedEvent, MappedSummaryEvent } from "./types";
+
+const SUMMARY_PREVIEW_LIMIT = 56;
 
 export function describeFileChangeKind(kind: "add" | "delete" | "update"): string {
   switch (kind) {
     case "add":
-      return "Added";
+      return "新增";
     case "delete":
-      return "Deleted";
+      return "删除";
     case "update":
-      return "Updated";
+      return "修改";
   }
 }
 
@@ -26,6 +28,59 @@ export function describeActivityType(type: "mcp_tool_call" | "web_search" | "tod
   }
 }
 
+function toSingleLinePreview(text: string, limit = SUMMARY_PREVIEW_LIMIT): string {
+  const normalized = text.trim().replace(/\s+/g, " ");
+  if (!normalized) {
+    return "";
+  }
+
+  return normalized.length > limit
+    ? `${normalized.slice(0, limit - 1).trimEnd()}...`
+    : normalized;
+}
+
+function getReasoningSummary(text: string): { label: string; preview: string } {
+  return {
+    label: "已思考",
+    preview: toSingleLinePreview(text)
+  };
+}
+
+function getCommandSummary(
+  command: string,
+  status: "in_progress" | "completed" | "failed"
+): { label: string; preview: string } {
+  return {
+    label: status === "in_progress" ? "正在运行" : "已运行",
+    preview: toSingleLinePreview(command)
+  };
+}
+
+function getActivitySummary(
+  activityType: "mcp_tool_call" | "web_search" | "todo_list",
+  title: string,
+  status?: "in_progress" | "completed" | "failed"
+): { label: string; preview?: string } {
+  if (activityType === "mcp_tool_call") {
+    return {
+      label: status === "in_progress" ? "正在调用" : "已调用",
+      preview: toSingleLinePreview(title)
+    };
+  }
+
+  if (activityType === "web_search") {
+    return {
+      label: status === "in_progress" ? "正在搜索" : "已搜索",
+      preview: toSingleLinePreview(title)
+    };
+  }
+
+  return {
+    label: status === "in_progress" ? "正在更新任务列表" : "已更新任务列表",
+    preview: toSingleLinePreview(title)
+  };
+}
+
 function prepareCard(
   containerEl: HTMLElement,
   existingEl: HTMLElement | undefined,
@@ -35,6 +90,42 @@ function prepareCard(
   cardEl.className = classNames;
   cardEl.replaceChildren();
   return cardEl;
+}
+
+function isDetailsElement(element: HTMLElement | undefined): boolean {
+  return element?.tagName?.toLowerCase() === "details";
+}
+
+function prepareCollapsibleCard(
+  containerEl: HTMLElement,
+  existingEl: HTMLElement | undefined,
+  classNames: string,
+  defaultCollapsed: boolean
+): {
+  readonly cardEl: HTMLElement;
+  readonly summaryEl: HTMLElement;
+  readonly contentEl: HTMLDivElement;
+} {
+  const cardEl: HTMLElement = isDetailsElement(existingEl)
+    ? existingEl!
+    : containerEl.ownerDocument.createElement("details");
+  const initialOpen = isDetailsElement(existingEl)
+    ? (existingEl as HTMLDetailsElement).open
+    : !defaultCollapsed;
+  cardEl.className = classNames;
+  (cardEl as HTMLDetailsElement).open = initialOpen;
+  cardEl.replaceChildren();
+
+  const summaryEl = containerEl.ownerDocument.createElement("summary");
+  summaryEl.className = "obsidian-codex-card-summary";
+  cardEl.appendChild(summaryEl);
+
+  const contentEl = containerEl.ownerDocument.createElement("div");
+  contentEl.className = "obsidian-codex-card-content";
+  cardEl.appendChild(contentEl);
+
+  appendIfNeeded(containerEl, cardEl);
+  return { cardEl, summaryEl, contentEl };
 }
 
 function appendIfNeeded(containerEl: HTMLElement, cardEl: HTMLElement): void {
@@ -80,9 +171,33 @@ function appendHeader(
   return headerEl;
 }
 
+function appendSystemEventSummary(
+  summaryEl: HTMLElement,
+  label: string,
+  preview?: string
+): HTMLDivElement {
+  const rowEl = summaryEl.ownerDocument.createElement("div");
+  rowEl.className = "obsidian-codex-system-event-row";
+
+  const labelEl = summaryEl.ownerDocument.createElement("span");
+  labelEl.className = "obsidian-codex-system-event-label";
+  labelEl.textContent = label;
+  rowEl.appendChild(labelEl);
+
+  if (preview) {
+    const previewEl = summaryEl.ownerDocument.createElement("span");
+    previewEl.className = "obsidian-codex-system-event-preview";
+    previewEl.textContent = preview;
+    rowEl.appendChild(previewEl);
+  }
+
+  summaryEl.appendChild(rowEl);
+  return rowEl;
+}
+
 export function renderEventCard(
   containerEl: HTMLElement,
-  event: MappedEvent,
+  event: MappedEvent | MappedSummaryEvent,
   existingEl?: HTMLElement
 ): HTMLElement {
   switch (event.type) {
@@ -90,64 +205,52 @@ export function renderEventCard(
       const cardEl = prepareCard(
         containerEl,
         existingEl,
-        "obsidian-codex-message is-assistant obsidian-codex-card is-text"
+        "obsidian-codex-response"
       );
-      appendTextBlock(cardEl, "obsidian-codex-card-body", event.text);
+      cardEl.textContent = event.text;
       appendIfNeeded(containerEl, cardEl);
       return cardEl;
     }
     case "reasoning": {
-      const expanded = existingEl?.dataset.expanded === "true";
-      const cardEl = prepareCard(containerEl, existingEl, "obsidian-codex-card is-reasoning");
-      cardEl.dataset.expanded = expanded ? "true" : "false";
-
-      const summaryButtonEl = cardEl.ownerDocument.createElement("button");
-      summaryButtonEl.className = "obsidian-codex-card-toggle";
-      summaryButtonEl.type = "button";
-      summaryButtonEl.textContent = expanded ? "Thinking ▾" : "Thinking ▸";
-
-      const bodyEl = appendTextBlock(cardEl, "obsidian-codex-card-body", event.text);
-      bodyEl.hidden = !expanded;
-
-      summaryButtonEl.addEventListener("click", () => {
-        const nextExpanded = cardEl.dataset.expanded !== "true";
-        cardEl.dataset.expanded = nextExpanded ? "true" : "false";
-        summaryButtonEl.textContent = nextExpanded ? "Thinking ▾" : "Thinking ▸";
-        bodyEl.hidden = !nextExpanded;
-      });
-
-      cardEl.prepend(summaryButtonEl);
-      appendIfNeeded(containerEl, cardEl);
+      const { cardEl, summaryEl, contentEl } = prepareCollapsibleCard(
+        containerEl,
+        existingEl,
+        "obsidian-codex-system-event is-reasoning",
+        true
+      );
+      const summary = getReasoningSummary(event.text);
+      appendSystemEventSummary(summaryEl, summary.label, summary.preview);
+      appendTextBlock(contentEl, "obsidian-codex-system-event-detail is-reasoning", event.text);
       return cardEl;
     }
     case "command": {
-      const cardEl = prepareCard(containerEl, existingEl, "obsidian-codex-card is-command");
-      appendHeader(
-        cardEl,
-        "Command",
-        event.status === "in_progress" ? "Running" : formatExitCode(event.exitCode),
-        `obsidian-codex-command-status is-${event.status}`
+      const { cardEl, summaryEl, contentEl } = prepareCollapsibleCard(
+        containerEl,
+        existingEl,
+        "obsidian-codex-system-event is-command",
+        true
       );
-      appendTextBlock(cardEl, "obsidian-codex-card-code", event.command);
+      const summary = getCommandSummary(event.command, event.status);
+      appendSystemEventSummary(summaryEl, summary.label, summary.preview);
+      appendTextBlock(contentEl, "obsidian-codex-card-code", event.command);
 
       if (event.aggregatedOutput) {
         const outputEl = cardEl.ownerDocument.createElement("pre");
         outputEl.className = "obsidian-codex-card-output";
         outputEl.textContent = event.aggregatedOutput;
-        cardEl.appendChild(outputEl);
+        contentEl.appendChild(outputEl);
       }
 
-      appendIfNeeded(containerEl, cardEl);
       return cardEl;
     }
     case "file_change": {
-      const cardEl = prepareCard(containerEl, existingEl, "obsidian-codex-card is-file-change");
-      appendHeader(
-        cardEl,
-        "File changes",
-        event.status === "completed" ? "Completed" : "Failed",
-        `obsidian-codex-card-badge is-${event.status === "completed" ? "success" : "danger"}`
+      const { cardEl, summaryEl, contentEl } = prepareCollapsibleCard(
+        containerEl,
+        existingEl,
+        "obsidian-codex-system-event is-file-change",
+        true
       );
+      appendSystemEventSummary(summaryEl, "已编辑的文件");
       const listEl = cardEl.ownerDocument.createElement("ul");
       listEl.className = "obsidian-codex-file-change-list";
 
@@ -161,28 +264,44 @@ export function renderEventCard(
         listEl.appendChild(itemEl);
       }
 
-      cardEl.appendChild(listEl);
-      appendIfNeeded(containerEl, cardEl);
+      contentEl.appendChild(listEl);
       return cardEl;
     }
     case "activity": {
-      const cardEl = prepareCard(containerEl, existingEl, "obsidian-codex-card is-activity");
-      appendHeader(
-        cardEl,
-        describeActivityType(event.activityType),
-        event.status ? event.status.replace("_", " ") : undefined,
-        event.status ? `obsidian-codex-card-badge is-${event.status === "failed" ? "danger" : "neutral"}` : undefined
+      const { cardEl, summaryEl, contentEl } = prepareCollapsibleCard(
+        containerEl,
+        existingEl,
+        "obsidian-codex-system-event is-activity",
+        true
       );
-      appendTextBlock(cardEl, "obsidian-codex-card-body", event.title);
+      const summary = getActivitySummary(event.activityType, event.title, event.status);
+      appendSystemEventSummary(summaryEl, summary.label, summary.preview);
+      appendTextBlock(contentEl, "obsidian-codex-card-body", event.title);
       if (event.detail) {
-        appendTextBlock(cardEl, "obsidian-codex-card-detail", event.detail);
+        appendTextBlock(contentEl, "obsidian-codex-card-detail", event.detail);
       }
-      appendIfNeeded(containerEl, cardEl);
+      return cardEl;
+    }
+    case "summary": {
+      const { cardEl, summaryEl, contentEl } = prepareCollapsibleCard(
+        containerEl,
+        existingEl,
+        "obsidian-codex-system-event is-summary",
+        true
+      );
+      appendSystemEventSummary(summaryEl, event.label, event.preview);
+
+      const listEl = cardEl.ownerDocument.createElement("div");
+      listEl.className = "obsidian-codex-system-event-list";
+      for (const line of event.lines) {
+        appendTextBlock(listEl, "obsidian-codex-system-event-detail", line);
+      }
+      contentEl.appendChild(listEl);
       return cardEl;
     }
     case "error":
     case "turn_failed": {
-      const cardEl = prepareCard(containerEl, existingEl, "obsidian-codex-card is-error");
+      const cardEl = prepareCard(containerEl, existingEl, "obsidian-codex-tool-block is-error");
       appendHeader(cardEl, "Error", "Failed", "obsidian-codex-card-badge is-danger");
       appendTextBlock(cardEl, "obsidian-codex-card-body", event.message);
       appendIfNeeded(containerEl, cardEl);

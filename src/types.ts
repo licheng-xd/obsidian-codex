@@ -1,10 +1,6 @@
 export const MODEL_OPTIONS = [
   { id: "gpt-5.4", label: "GPT-5.4" },
-  { id: "gpt-5.3-codex", label: "GPT-5.3-Codex" },
-  { id: "gpt-5.2-codex", label: "GPT-5.2-Codex" },
-  { id: "gpt-5.2", label: "GPT-5.2" },
-  { id: "gpt-5.1-codex-max", label: "GPT-5.1-Codex-Max" },
-  { id: "gpt-5.1-codex-mini", label: "GPT-5.1-Codex-Mini" }
+  { id: "gpt-5.3-codex", label: "GPT-5.3-Codex" }
 ] as const;
 
 export const MODEL_PRESETS = MODEL_OPTIONS.map((option) => option.id);
@@ -29,6 +25,8 @@ export type FileChangeKind = "add" | "delete" | "update";
 export interface ContextUsage {
   readonly localCharsUsed: number;
   readonly localCharsLimit: number;
+  readonly threadCharsUsedEstimate: number;
+  readonly threadCharsLimitEstimate: number;
   readonly sdkInputTokens: number | null;
   readonly sdkCachedInputTokens: number | null;
   readonly sdkOutputTokens: number | null;
@@ -98,6 +96,14 @@ export interface MappedErrorEvent {
   readonly type: "error";
   readonly message: string;
   readonly itemId?: string;
+}
+
+export interface MappedSummaryEvent {
+  readonly type: "summary";
+  readonly itemId: string;
+  readonly label: string;
+  readonly preview?: string;
+  readonly lines: ReadonlyArray<string>;
 }
 
 export interface MappedNoopEvent {
