@@ -1,4 +1,11 @@
-import { DEFAULT_MODEL, MODEL_PRESETS, type ContextUsage } from "./types";
+import {
+  DEFAULT_MODEL,
+  MODEL_OPTIONS,
+  MODEL_PRESETS,
+  REASONING_EFFORT_OPTIONS,
+  type ContextUsage,
+  type ReasoningEffort
+} from "./types";
 
 const CUSTOM_MODEL_OPTION = "__custom__";
 
@@ -27,36 +34,75 @@ export function formatLastTurnUsage(
   return `Last turn: in ${formatCompactCount(input)} / cached ${formatCompactCount(cached)} / out ${formatCompactCount(output)}`;
 }
 
+export function getModelSelectLabel(model: string): string {
+  return MODEL_OPTIONS.find((option) => option.id === model)?.label ?? model;
+}
+
+export function getReasoningEffortLabel(effort: ReasoningEffort): string {
+  return REASONING_EFFORT_OPTIONS.find((option) => option.id === effort)?.label ?? effort;
+}
+
 interface StatusBarCallbacks {
   onModelChange: (model: string) => void | Promise<void>;
+  onReasoningEffortChange: (effort: ReasoningEffort) => void | Promise<void>;
   onYoloChange: (enabled: boolean) => void | Promise<void>;
+}
+
+function getVaultPillLabel(workingDirectory?: string): string {
+  if (!workingDirectory) {
+    return "Vault unavailable";
+  }
+
+  const trimmedPath = workingDirectory.replace(/[\\/]+$/, "");
+  const pathSegments = trimmedPath.split(/[\\/]/).filter(Boolean);
+  const displayName = pathSegments[pathSegments.length - 1] ?? workingDirectory;
+  return `Vault ${displayName}`;
 }
 
 export class StatusBar {
   private readonly rootEl: HTMLDivElement;
+  private readonly usageEl: HTMLDivElement;
+  private readonly controlsEl: HTMLDivElement;
+  private readonly controlsPrimaryEl: HTMLDivElement;
   private readonly modelSelectEl: HTMLSelectElement;
+  private readonly reasoningSelectEl: HTMLSelectElement;
   private readonly customModelInputEl: HTMLInputElement;
   private readonly localUsageEl: HTMLDivElement;
   private readonly turnUsageEl: HTMLDivElement;
+  private readonly workingDirectoryEl: HTMLDivElement;
   private readonly yoloToggleEl: HTMLInputElement;
 
   constructor(
     containerEl: HTMLElement,
     initialModel: string,
+    initialReasoningEffort: ReasoningEffort,
     initialYolo: boolean,
     private readonly callbacks: StatusBarCallbacks
   ) {
     this.rootEl = containerEl.ownerDocument.createElement("div");
     this.rootEl.className = "obsidian-codex-statusbar";
 
-    const modelSectionEl = containerEl.ownerDocument.createElement("div");
-    modelSectionEl.className = "obsidian-codex-statusbar-model";
-    this.modelSelectEl = containerEl.ownerDocument.createElement("select");
+    this.usageEl = containerEl.ownerDocument.createElement("div");
+    this.usageEl.className = "obsidian-codex-statusbar-usage";
+    this.localUsageEl = containerEl.ownerDocument.createElement("div");
+    this.localUsageEl.className = "obsidian-codex-statusbar-usage-item";
+    this.turnUsageEl = containerEl.ownerDocument.createElement("div");
+    this.turnUsageEl.className = "obsidian-codex-statusbar-usage-item";
+    this.usageEl.append(this.localUsageEl, this.turnUsageEl);
 
-    for (const model of MODEL_PRESETS) {
+    this.controlsEl = containerEl.ownerDocument.createElement("div");
+    this.controlsEl.className = "obsidian-codex-statusbar-controls";
+    this.controlsPrimaryEl = containerEl.ownerDocument.createElement("div");
+    this.controlsPrimaryEl.className = "obsidian-codex-statusbar-primary";
+
+    this.modelSelectEl = containerEl.ownerDocument.createElement("select");
+    this.modelSelectEl.className = "obsidian-codex-statusbar-select";
+    this.modelSelectEl.ariaLabel = "Codex model";
+
+    for (const model of MODEL_OPTIONS) {
       const optionEl = containerEl.ownerDocument.createElement("option");
-      optionEl.value = model;
-      optionEl.textContent = model;
+      optionEl.value = model.id;
+      optionEl.textContent = model.label;
       this.modelSelectEl.appendChild(optionEl);
     }
 
@@ -69,6 +115,7 @@ export class StatusBar {
     this.customModelInputEl.type = "text";
     this.customModelInputEl.className = "obsidian-codex-statusbar-model-input";
     this.customModelInputEl.placeholder = DEFAULT_MODEL;
+    this.customModelInputEl.ariaLabel = "Custom Codex model";
 
     this.modelSelectEl.addEventListener("change", () => {
       const model = this.modelSelectEl.value;
@@ -84,25 +131,45 @@ export class StatusBar {
       void this.callbacks.onModelChange(model);
     });
 
-    modelSectionEl.append(this.modelSelectEl, this.customModelInputEl);
+    this.reasoningSelectEl = containerEl.ownerDocument.createElement("select");
+    this.reasoningSelectEl.className = "obsidian-codex-statusbar-select";
+    this.reasoningSelectEl.ariaLabel = "Reasoning effort";
+    for (const effort of REASONING_EFFORT_OPTIONS) {
+      const optionEl = containerEl.ownerDocument.createElement("option");
+      optionEl.value = effort.id;
+      optionEl.textContent = effort.label;
+      this.reasoningSelectEl.appendChild(optionEl);
+    }
+    this.reasoningSelectEl.addEventListener("change", () => {
+      void this.callbacks.onReasoningEffortChange(this.reasoningSelectEl.value as ReasoningEffort);
+    });
 
-    const contextSectionEl = containerEl.ownerDocument.createElement("div");
-    contextSectionEl.className = "obsidian-codex-statusbar-context";
-    this.localUsageEl = containerEl.ownerDocument.createElement("div");
-    this.turnUsageEl = containerEl.ownerDocument.createElement("div");
-    contextSectionEl.append(this.localUsageEl, this.turnUsageEl);
+    this.workingDirectoryEl = containerEl.ownerDocument.createElement("div");
+    this.workingDirectoryEl.className = "obsidian-codex-statusbar-vault";
+
+    this.controlsPrimaryEl.append(
+      this.modelSelectEl,
+      this.customModelInputEl,
+      this.reasoningSelectEl,
+      this.workingDirectoryEl
+    );
 
     const yoloSectionEl = containerEl.ownerDocument.createElement("label");
     yoloSectionEl.className = "obsidian-codex-statusbar-yolo";
-    yoloSectionEl.append("YOLO");
+    const yoloLabelEl = containerEl.ownerDocument.createElement("span");
+    yoloLabelEl.className = "obsidian-codex-statusbar-yolo-label";
+    yoloLabelEl.textContent = "YOLO";
+    yoloSectionEl.appendChild(yoloLabelEl);
     this.yoloToggleEl = containerEl.ownerDocument.createElement("input");
     this.yoloToggleEl.type = "checkbox";
+    this.yoloToggleEl.ariaLabel = "YOLO mode";
     this.yoloToggleEl.addEventListener("change", () => {
       void this.callbacks.onYoloChange(this.yoloToggleEl.checked);
     });
     yoloSectionEl.appendChild(this.yoloToggleEl);
 
-    this.rootEl.append(modelSectionEl, contextSectionEl, yoloSectionEl);
+    this.controlsEl.append(this.controlsPrimaryEl, yoloSectionEl);
+    this.rootEl.append(this.usageEl, this.controlsEl);
     containerEl.appendChild(this.rootEl);
 
     this.updateContextUsage({
@@ -113,7 +180,9 @@ export class StatusBar {
       sdkOutputTokens: null
     });
     this.updateModel(initialModel);
+    this.updateReasoningEffort(initialReasoningEffort);
     this.updateYolo(initialYolo);
+    this.updateWorkingDirectory();
   }
 
   updateContextUsage(usage: ContextUsage): void {
@@ -129,9 +198,18 @@ export class StatusBar {
     this.syncModelControls(model);
   }
 
+  updateReasoningEffort(effort: ReasoningEffort): void {
+    this.reasoningSelectEl.value = effort;
+  }
+
   updateYolo(enabled: boolean): void {
     this.yoloToggleEl.checked = enabled;
     this.rootEl.classList.toggle("is-yolo-active", enabled);
+  }
+
+  updateWorkingDirectory(workingDirectory?: string): void {
+    this.workingDirectoryEl.textContent = getVaultPillLabel(workingDirectory);
+    this.workingDirectoryEl.title = workingDirectory ?? "Vault path unavailable";
   }
 
   destroy(): void {

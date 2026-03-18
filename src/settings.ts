@@ -1,4 +1,4 @@
-import { DEFAULT_MODEL } from "./types";
+import { DEFAULT_MODEL, DEFAULT_REASONING_EFFORT, type ReasoningEffort } from "./types";
 
 export type SandboxMode = "read-only" | "workspace-write" | "danger-full-access";
 export type ApprovalPolicy = "never" | "on-request" | "on-failure";
@@ -12,6 +12,7 @@ export interface PluginSettings {
   sandboxMode: SandboxMode;
   approvalPolicy: ApprovalPolicy;
   model: string;
+  reasoningEffort: ReasoningEffort;
   yoloMode: boolean;
 }
 
@@ -21,11 +22,13 @@ export const DEFAULT_SETTINGS: PluginSettings = {
   sandboxMode: "workspace-write",
   approvalPolicy: "on-request",
   model: DEFAULT_MODEL,
+  reasoningEffort: DEFAULT_REASONING_EFFORT,
   yoloMode: false
 };
 
 const SANDBOX_MODES: SandboxMode[] = ["read-only", "workspace-write", "danger-full-access"];
 const APPROVAL_POLICIES: ApprovalPolicy[] = ["never", "on-request", "on-failure"];
+const REASONING_EFFORTS: ReasoningEffort[] = ["low", "medium", "high", "xhigh"];
 
 export function isYoloConfiguration(
   sandboxMode: SandboxMode,
@@ -87,6 +90,9 @@ export function sanitizePluginSettings(
     : DEFAULT_SETTINGS.approvalPolicy;
   const model =
     typeof data?.model === "string" && data.model.trim() ? data.model.trim() : DEFAULT_SETTINGS.model;
+  const reasoningEffort = REASONING_EFFORTS.includes(data?.reasoningEffort as ReasoningEffort)
+    ? (data?.reasoningEffort as ReasoningEffort)
+    : DEFAULT_SETTINGS.reasoningEffort;
   const yoloMode =
     typeof data?.yoloMode === "boolean" && data.yoloMode
       ? isYoloConfiguration(sandboxMode, approvalPolicy)
@@ -101,6 +107,7 @@ export function sanitizePluginSettings(
     sandboxMode,
     approvalPolicy,
     model,
+    reasoningEffort,
     yoloMode
   };
 }

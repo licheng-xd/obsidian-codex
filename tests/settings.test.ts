@@ -11,14 +11,15 @@ describe("sanitizePluginSettings", () => {
     expect(sanitizePluginSettings(undefined)).toEqual(DEFAULT_SETTINGS);
   });
 
-  it("accepts V2 model and YOLO fields", () => {
+  it("accepts official client model list and reasoning effort fields", () => {
     expect(
       sanitizePluginSettings({
         codexPath: "/custom/bin/codex",
         skipGitRepoCheck: false,
         sandboxMode: "danger-full-access",
         approvalPolicy: "never",
-        model: "gpt-5.2-codex",
+        model: "gpt-5.3-codex",
+        reasoningEffort: "xhigh",
         yoloMode: true
       })
     ).toEqual({
@@ -26,7 +27,8 @@ describe("sanitizePluginSettings", () => {
       skipGitRepoCheck: false,
       sandboxMode: "danger-full-access",
       approvalPolicy: "never",
-      model: "gpt-5.2-codex",
+      model: "gpt-5.3-codex",
+      reasoningEffort: "xhigh",
       yoloMode: true
     });
   });
@@ -37,6 +39,7 @@ describe("sanitizePluginSettings", () => {
         sandboxMode: "invalid" as "read-only",
         approvalPolicy: "invalid" as "never",
         model: 123 as unknown as string,
+        reasoningEffort: "ultra" as "high",
         yoloMode: "true" as unknown as boolean
       })
     ).toEqual({
@@ -44,6 +47,7 @@ describe("sanitizePluginSettings", () => {
       sandboxMode: DEFAULT_SETTINGS.sandboxMode,
       approvalPolicy: DEFAULT_SETTINGS.approvalPolicy,
       model: DEFAULT_SETTINGS.model,
+      reasoningEffort: DEFAULT_SETTINGS.reasoningEffort,
       yoloMode: DEFAULT_SETTINGS.yoloMode
     });
   });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatContextSummary } from "../src/context-summary";
+import { formatContextSummary, getContextSummaryLines } from "../src/context-summary";
 
 describe("formatContextSummary", () => {
   it("shows vault root and current note on separate lines", () => {
@@ -27,5 +27,21 @@ describe("formatContextSummary", () => {
         selectionText: "hello"
       })
     ).toBe("Vault root: /vault\nCurrent note: doc.md\nSelection: 5 chars selected");
+  });
+});
+
+describe("getContextSummaryLines", () => {
+  it("returns separate summary rows for compact tray rendering", () => {
+    expect(
+      getContextSummaryLines({
+        vaultRootPath: "/Users/licheng/Vault",
+        activeNotePath: "notes/today.md",
+        selectionText: "hello"
+      })
+    ).toEqual([
+      { label: "Vault root", value: "/Users/licheng/Vault" },
+      { label: "Current note", value: "notes/today.md" },
+      { label: "Selection", value: "5 chars selected" }
+    ]);
   });
 });

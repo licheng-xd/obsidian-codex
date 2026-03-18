@@ -1,280 +1,610 @@
 .obsidian-codex-view {
+  --obsidian-codex-bg: #262422;
+  --obsidian-codex-surface: rgba(16, 16, 15, 0.38);
+  --obsidian-codex-surface-strong: rgba(14, 14, 13, 0.58);
+  --obsidian-codex-border: rgba(255, 255, 255, 0.09);
+  --obsidian-codex-border-strong: rgba(255, 255, 255, 0.14);
+  --obsidian-codex-text: #f1ece7;
+  --obsidian-codex-muted: rgba(241, 236, 231, 0.66);
+  --obsidian-codex-soft: rgba(241, 236, 231, 0.4);
+  --obsidian-codex-accent: #d97e59;
+  --obsidian-codex-accent-soft: rgba(217, 126, 89, 0.14);
+  --obsidian-codex-danger: #de6e67;
+  --obsidian-codex-success: #77b986;
+  background:
+    radial-gradient(circle at top center, rgba(255, 255, 255, 0.04), transparent 28%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.02), transparent 24%),
+    var(--obsidian-codex-bg);
+  color: var(--obsidian-codex-text);
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 18px;
   height: 100%;
-  padding: 12px;
+  padding: 18px 16px 14px;
 }
 
 .obsidian-codex-header {
   align-items: center;
   display: flex;
-  justify-content: space-between;
+  flex: 0 0 auto;
+  min-height: 28px;
 }
 
-.obsidian-codex-header h2 {
+.obsidian-codex-brand {
+  align-items: center;
+  color: var(--obsidian-codex-text);
+  display: inline-flex;
+  gap: 10px;
+}
+
+.obsidian-codex-brand-icon {
+  color: var(--obsidian-codex-accent);
+  display: inline-flex;
+}
+
+.obsidian-codex-brand-icon svg {
+  height: 18px;
+  width: 18px;
+}
+
+.obsidian-codex-brand-label {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.obsidian-codex-stage {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  position: relative;
+}
+
+.obsidian-codex-empty-state {
+  align-items: center;
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  pointer-events: none;
+  position: absolute;
+  transition:
+    opacity 180ms ease,
+    transform 180ms ease;
+}
+
+.obsidian-codex-empty-state.is-hidden {
+  opacity: 0;
+  transform: translateY(12px);
+}
+
+.obsidian-codex-empty-title {
+  color: rgba(241, 236, 231, 0.78);
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(38px, 6vw, 56px);
+  font-weight: 600;
+  letter-spacing: -0.02em;
   margin: 0;
-}
-
-.obsidian-codex-context {
-  background: var(--background-secondary);
-  border-radius: 10px;
-  color: var(--text-muted);
-  font-size: var(--font-ui-smaller);
-  line-height: 1.5;
-  padding: 10px 12px;
-  white-space: pre-line;
+  text-align: center;
 }
 
 .obsidian-codex-messages {
   display: flex;
   flex: 1;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
+  height: 100%;
   min-height: 0;
   overflow-y: auto;
+  padding: 18px 0 12px;
+  position: relative;
+  z-index: 1;
 }
 
-.obsidian-codex-message {
-  background: var(--background-secondary);
-  border-radius: 12px;
-  line-height: 1.5;
-  max-width: 92%;
-  padding: 10px 12px;
-  white-space: pre-wrap;
-  word-break: break-word;
+.obsidian-codex-message,
+.obsidian-codex-card,
+.obsidian-codex-thinking {
+  width: min(100%, 760px);
 }
 
+.obsidian-codex-message,
 .obsidian-codex-card {
-  background: var(--background-secondary);
-  border-left: 3px solid var(--interactive-accent);
-  border-radius: 12px;
-  line-height: 1.5;
-  max-width: 100%;
-  padding: 10px 12px;
+  background: var(--obsidian-codex-surface);
+  border: 1px solid var(--obsidian-codex-border);
+  border-radius: 22px;
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.15);
+  color: var(--obsidian-codex-text);
+  line-height: 1.6;
+  margin: 0 auto;
+  padding: 16px 18px;
   white-space: pre-wrap;
   word-break: break-word;
 }
 
 .obsidian-codex-message.is-user {
   align-self: flex-end;
-  background: var(--interactive-accent);
-  color: var(--text-on-accent);
+  background: linear-gradient(180deg, rgba(217, 126, 89, 0.2), rgba(217, 126, 89, 0.12));
+  border-color: rgba(217, 126, 89, 0.24);
+  color: #f7d4c6;
+  margin-right: 0;
+  max-width: min(84%, 660px);
 }
 
 .obsidian-codex-message.is-assistant {
-  align-self: flex-start;
+  align-self: stretch;
 }
 
 .obsidian-codex-message.is-status {
   align-self: center;
-  color: var(--text-muted);
-  font-size: var(--font-ui-smaller);
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  color: var(--obsidian-codex-soft);
+  font-size: 12px;
+  padding: 4px 0;
+  text-align: center;
 }
 
-.obsidian-codex-message.is-error {
-  background: color-mix(in srgb, var(--color-red) 14%, var(--background-secondary));
-  border: 1px solid color-mix(in srgb, var(--color-red) 30%, transparent);
+.obsidian-codex-card {
+  backdrop-filter: blur(18px);
+}
+
+.obsidian-codex-card.is-text {
+  background: rgba(255, 255, 255, 0.04);
 }
 
 .obsidian-codex-card.is-reasoning {
-  border-left-color: var(--text-muted);
+  background: rgba(255, 255, 255, 0.03);
 }
 
-.obsidian-codex-card.is-command {
-  border-left-color: var(--interactive-accent);
-}
-
-.obsidian-codex-card.is-file-change {
-  border-left-color: var(--color-yellow);
-}
-
+.obsidian-codex-card.is-command,
+.obsidian-codex-card.is-file-change,
 .obsidian-codex-card.is-activity {
-  border-left-color: color-mix(in srgb, var(--color-cyan) 65%, var(--interactive-accent));
+  background: rgba(9, 9, 9, 0.34);
+}
+
+.obsidian-codex-card.is-error {
+  background: rgba(222, 110, 103, 0.12);
+  border-color: rgba(222, 110, 103, 0.26);
+}
+
+.obsidian-codex-card-header {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+  margin-bottom: 10px;
 }
 
 .obsidian-codex-card-title {
-  color: var(--text-muted);
-  font-size: var(--font-ui-smaller);
+  color: var(--obsidian-codex-muted);
+  font-size: 11px;
   font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
 }
 
-.obsidian-codex-card-toggle {
-  background: transparent;
-  border: 0;
-  color: var(--text-muted);
-  cursor: pointer;
-  font-size: var(--font-ui-smaller);
-  padding: 0;
-  text-align: left;
-}
-
-.obsidian-codex-card-body {
-  margin-top: 6px;
-}
-
-.obsidian-codex-card-detail,
-.obsidian-codex-card-status {
-  color: var(--text-muted);
-  font-size: var(--font-ui-smaller);
-  margin-top: 6px;
-}
-
-.obsidian-codex-card-code {
-  font-family: var(--font-monospace);
-  margin-top: 6px;
-}
-
-.obsidian-codex-card-output {
-  background: var(--background-primary);
-  border-radius: 8px;
-  font-family: var(--font-monospace);
-  font-size: var(--font-ui-smaller);
-  margin: 8px 0 0;
-  overflow-x: auto;
-  padding: 10px;
-}
-
+.obsidian-codex-card-badge,
 .obsidian-codex-command-status {
-  font-size: var(--font-ui-smaller);
-  margin-left: 8px;
+  align-items: center;
+  border: 1px solid var(--obsidian-codex-border-strong);
+  border-radius: 999px;
+  color: var(--obsidian-codex-muted);
+  display: inline-flex;
+  font-size: 11px;
+  gap: 6px;
+  justify-content: center;
+  padding: 5px 10px;
+  white-space: nowrap;
+}
+
+.obsidian-codex-card-badge.is-success,
+.obsidian-codex-command-status.is-completed {
+  color: var(--obsidian-codex-success);
+}
+
+.obsidian-codex-card-badge.is-danger,
+.obsidian-codex-command-status.is-failed {
+  color: var(--obsidian-codex-danger);
 }
 
 .obsidian-codex-command-status.is-in_progress::before {
   animation: obsidian-codex-spin 0.8s linear infinite;
-  border: 2px solid color-mix(in srgb, var(--interactive-accent) 20%, transparent);
+  border: 2px solid rgba(217, 126, 89, 0.22);
   border-radius: 999px;
-  border-top-color: var(--interactive-accent);
+  border-top-color: var(--obsidian-codex-accent);
   content: "";
   display: inline-block;
   height: 10px;
-  margin-right: 6px;
-  vertical-align: middle;
   width: 10px;
 }
 
-.obsidian-codex-command-status.is-completed {
-  color: var(--color-green);
+.obsidian-codex-card-toggle {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  color: var(--obsidian-codex-muted);
+  cursor: pointer;
+  display: flex;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  padding: 0;
+  text-transform: uppercase;
 }
 
-.obsidian-codex-command-status.is-failed {
-  color: var(--color-red);
+.obsidian-codex-card-body {
+  color: var(--obsidian-codex-text);
+}
+
+.obsidian-codex-card-detail {
+  color: var(--obsidian-codex-muted);
+  font-size: 13px;
+  margin-top: 8px;
+}
+
+.obsidian-codex-card-code {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 16px;
+  font-family: var(--font-monospace);
+  font-size: 12px;
+  margin-top: 10px;
+  overflow-x: auto;
+  padding: 12px 14px;
+}
+
+.obsidian-codex-card-output {
+  background: rgba(0, 0, 0, 0.26);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 16px;
+  color: var(--obsidian-codex-muted);
+  font-family: var(--font-monospace);
+  font-size: 12px;
+  margin: 10px 0 0;
+  overflow-x: auto;
+  padding: 12px 14px;
 }
 
 .obsidian-codex-file-change-list {
-  margin: 8px 0 0;
-  padding-left: 18px;
-}
-
-.obsidian-codex-file-change-badge {
-  border-radius: 999px;
-  font-size: var(--font-ui-smaller);
-  padding: 2px 6px;
-}
-
-.obsidian-codex-file-change-badge.is-add {
-  background: color-mix(in srgb, var(--color-green) 16%, transparent);
-  color: var(--color-green);
-}
-
-.obsidian-codex-file-change-badge.is-delete {
-  background: color-mix(in srgb, var(--color-red) 16%, transparent);
-  color: var(--color-red);
-}
-
-.obsidian-codex-file-change-badge.is-update {
-  background: color-mix(in srgb, var(--color-yellow) 18%, transparent);
-  color: var(--color-yellow);
-}
-
-.obsidian-codex-composer {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
 }
 
-.obsidian-codex-input {
-  min-height: 110px;
-  resize: vertical;
-  width: 100%;
-}
-
-.obsidian-codex-actions {
+.obsidian-codex-file-change-list li {
+  align-items: center;
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
-  justify-content: flex-end;
+}
+
+.obsidian-codex-file-change-badge {
+  border: 1px solid var(--obsidian-codex-border-strong);
+  border-radius: 999px;
+  font-size: 11px;
+  padding: 4px 8px;
+}
+
+.obsidian-codex-file-change-badge.is-add {
+  color: var(--obsidian-codex-success);
+}
+
+.obsidian-codex-file-change-badge.is-delete {
+  color: var(--obsidian-codex-danger);
+}
+
+.obsidian-codex-file-change-badge.is-update {
+  color: var(--obsidian-codex-accent);
 }
 
 .obsidian-codex-thinking {
   align-items: center;
+  color: var(--obsidian-codex-muted);
   display: flex;
-  gap: 6px;
-  padding: 8px 2px;
+  gap: 12px;
+  margin: 0 auto;
+  padding: 6px 0;
 }
 
-.obsidian-codex-thinking span {
+.obsidian-codex-thinking-label {
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.obsidian-codex-thinking-dots {
+  display: inline-flex;
+  gap: 6px;
+}
+
+.obsidian-codex-thinking-dots span {
   animation: obsidian-codex-pulse 1s ease-in-out infinite;
-  background: var(--text-muted);
+  background: var(--obsidian-codex-muted);
   border-radius: 999px;
   display: inline-block;
-  height: 8px;
+  height: 7px;
   opacity: 0.35;
-  width: 8px;
+  width: 7px;
 }
 
-.obsidian-codex-thinking span:nth-child(2) {
+.obsidian-codex-thinking-dots span:nth-child(2) {
   animation-delay: 0.15s;
 }
 
-.obsidian-codex-thinking span:nth-child(3) {
+.obsidian-codex-thinking-dots span:nth-child(3) {
   animation-delay: 0.3s;
 }
 
-.obsidian-codex-statusbar {
-  align-items: center;
-  background: var(--background-secondary);
-  border-radius: 12px;
-  display: grid;
+.obsidian-codex-tray {
+  background: linear-gradient(180deg, rgba(22, 22, 21, 0.76), rgba(14, 14, 13, 0.82));
+  border: 1px solid var(--obsidian-codex-border);
+  border-radius: 24px;
+  box-shadow:
+    0 22px 60px rgba(0, 0, 0, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  gap: 14px;
+  padding: 14px 14px 12px;
+}
+
+.obsidian-codex-tray-header {
+  align-items: flex-start;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+}
+
+.obsidian-codex-context {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+
+.obsidian-codex-context-line {
+  align-items: baseline;
+  display: flex;
   gap: 8px;
-  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) auto;
-  padding: 10px 12px;
+  min-width: 0;
 }
 
-.obsidian-codex-statusbar.is-yolo-active {
-  background: color-mix(in srgb, var(--color-red) 10%, var(--background-secondary));
-  border: 1px solid color-mix(in srgb, var(--color-red) 35%, transparent);
+.obsidian-codex-context-label {
+  color: var(--obsidian-codex-soft);
+  flex: 0 0 88px;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
-.obsidian-codex-statusbar-model,
-.obsidian-codex-statusbar-context,
-.obsidian-codex-statusbar-yolo {
+.obsidian-codex-context-value {
+  color: var(--obsidian-codex-muted);
+  font-size: 12px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.obsidian-codex-tray-actions {
   display: flex;
   gap: 8px;
 }
 
-.obsidian-codex-statusbar-model {
+.obsidian-codex-tray-action {
   align-items: center;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
+  color: var(--obsidian-codex-muted);
+  cursor: pointer;
+  display: inline-flex;
+  height: 34px;
+  justify-content: center;
+  padding: 0;
+  transition:
+    background 120ms ease,
+    border-color 120ms ease,
+    color 120ms ease,
+    transform 120ms ease;
+  width: 34px;
 }
 
-.obsidian-codex-statusbar-model select,
-.obsidian-codex-statusbar-model input {
+.obsidian-codex-tray-action:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.1);
+  color: var(--obsidian-codex-text);
+  transform: translateY(-1px);
+}
+
+.obsidian-codex-tray-action.is-primary {
+  background: var(--obsidian-codex-accent-soft);
+  border-color: rgba(217, 126, 89, 0.22);
+  color: var(--obsidian-codex-accent);
+}
+
+.obsidian-codex-tray-action:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
+  transform: none;
+}
+
+.obsidian-codex-input-shell {
+  background: var(--obsidian-codex-surface-strong);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 18px;
+  min-height: 158px;
+  padding: 14px 16px;
+}
+
+.obsidian-codex-input {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  color: var(--obsidian-codex-text);
+  line-height: 1.6;
+  min-height: 126px;
+  padding: 0;
+  resize: none;
+  width: 100%;
+}
+
+.obsidian-codex-input:focus {
+  box-shadow: none;
+  outline: none;
+}
+
+.obsidian-codex-input::placeholder {
+  color: rgba(241, 236, 231, 0.72);
+}
+
+.obsidian-codex-tray-footer {
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  padding-top: 12px;
+}
+
+.obsidian-codex-statusbar {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.obsidian-codex-statusbar-usage {
+  color: var(--obsidian-codex-soft);
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 11px;
+  gap: 10px 16px;
+}
+
+.obsidian-codex-statusbar-controls {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.obsidian-codex-statusbar-primary {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  gap: 8px;
   min-width: 0;
+}
+
+.obsidian-codex-statusbar-select,
+.obsidian-codex-statusbar-model-input,
+.obsidian-codex-statusbar-vault {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  color: var(--obsidian-codex-text);
+  font-size: 12px;
+  min-height: 34px;
+  padding: 0 14px;
+}
+
+.obsidian-codex-statusbar-select {
+  appearance: none;
+  cursor: pointer;
+  padding-right: 30px;
+}
+
+.obsidian-codex-statusbar-model-input {
+  min-width: 180px;
 }
 
 .obsidian-codex-statusbar-model-input[hidden] {
   display: none;
 }
 
-.obsidian-codex-statusbar-context {
-  color: var(--text-muted);
-  flex-direction: column;
-  font-size: var(--font-ui-smaller);
+.obsidian-codex-statusbar-vault {
+  align-items: center;
+  color: var(--obsidian-codex-muted);
+  display: inline-flex;
 }
 
 .obsidian-codex-statusbar-yolo {
   align-items: center;
-  font-size: var(--font-ui-smaller);
-  justify-self: end;
+  color: var(--obsidian-codex-muted);
+  display: inline-flex;
+  gap: 10px;
+  margin-left: auto;
+}
+
+.obsidian-codex-statusbar-yolo-label {
+  font-size: 13px;
+  letter-spacing: 0.02em;
+}
+
+.obsidian-codex-statusbar-yolo input {
+  appearance: none;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  cursor: pointer;
+  height: 28px;
+  position: relative;
+  transition: background 120ms ease;
+  width: 48px;
+}
+
+.obsidian-codex-statusbar-yolo input::after {
+  background: rgba(241, 236, 231, 0.74);
+  border-radius: 999px;
+  content: "";
+  height: 20px;
+  left: 4px;
+  position: absolute;
+  top: 3px;
+  transition:
+    background 120ms ease,
+    transform 120ms ease;
+  width: 20px;
+}
+
+.obsidian-codex-statusbar-yolo input:checked {
+  background: rgba(217, 126, 89, 0.28);
+  border-color: rgba(217, 126, 89, 0.22);
+}
+
+.obsidian-codex-statusbar-yolo input:checked::after {
+  background: var(--obsidian-codex-accent);
+  transform: translateX(18px);
+}
+
+.obsidian-codex-statusbar.is-yolo-active .obsidian-codex-statusbar-yolo-label,
+.obsidian-codex-statusbar.is-yolo-active .obsidian-codex-statusbar-usage-item:first-child {
+  color: var(--obsidian-codex-accent);
+}
+
+@media (max-width: 720px) {
+  .obsidian-codex-view {
+    gap: 14px;
+    padding: 14px 12px 12px;
+  }
+
+  .obsidian-codex-empty-title {
+    font-size: 42px;
+  }
+
+  .obsidian-codex-tray-header,
+  .obsidian-codex-statusbar-controls {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .obsidian-codex-tray-actions {
+    justify-content: flex-end;
+  }
+
+  .obsidian-codex-statusbar-yolo {
+    margin-left: 0;
+  }
 }
 
 @keyframes obsidian-codex-pulse {

@@ -1,6 +1,25 @@
-export const MODEL_PRESETS = ["gpt-5-codex", "gpt-5.2-codex", "gpt-5.1-codex-mini"] as const;
+export const MODEL_OPTIONS = [
+  { id: "gpt-5.4", label: "GPT-5.4" },
+  { id: "gpt-5.3-codex", label: "GPT-5.3-Codex" },
+  { id: "gpt-5.2-codex", label: "GPT-5.2-Codex" },
+  { id: "gpt-5.2", label: "GPT-5.2" },
+  { id: "gpt-5.1-codex-max", label: "GPT-5.1-Codex-Max" },
+  { id: "gpt-5.1-codex-mini", label: "GPT-5.1-Codex-Mini" }
+] as const;
 
-export const DEFAULT_MODEL = MODEL_PRESETS[0];
+export const MODEL_PRESETS = MODEL_OPTIONS.map((option) => option.id);
+
+export const DEFAULT_MODEL = MODEL_OPTIONS[0].id;
+
+export const REASONING_EFFORT_OPTIONS = [
+  { id: "low", label: "低" },
+  { id: "medium", label: "中" },
+  { id: "high", label: "高" },
+  { id: "xhigh", label: "超高" }
+] as const;
+
+export type ReasoningEffort = (typeof REASONING_EFFORT_OPTIONS)[number]["id"];
+export const DEFAULT_REASONING_EFFORT: ReasoningEffort = "xhigh";
 
 export type ActivityType = "mcp_tool_call" | "web_search" | "todo_list";
 export type CommandStatus = "in_progress" | "completed" | "failed";

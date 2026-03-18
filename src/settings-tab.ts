@@ -1,5 +1,6 @@
 import { App, PluginSettingTab, Setting } from "obsidian";
 import type ObsidianCodexPlugin from "./main";
+import { REASONING_EFFORT_OPTIONS, type ReasoningEffort } from "./types";
 import {
   DEFAULT_SETTINGS,
   patchPluginSettings,
@@ -43,6 +44,19 @@ export class ObsidianCodexSettingTab extends PluginSettingTab {
           .onChange(async (value) => {
             await this.savePatchedSettings({ model: value || DEFAULT_SETTINGS.model });
           });
+      });
+
+    new Setting(containerEl)
+      .setName("Reasoning effort")
+      .setDesc("Default model reasoning effort for future Codex turns.")
+      .addDropdown((dropdown) => {
+        for (const option of REASONING_EFFORT_OPTIONS) {
+          dropdown.addOption(option.id, option.label);
+        }
+
+        dropdown.setValue(this.plugin.settings.reasoningEffort).onChange(async (value) => {
+          await this.savePatchedSettings({ reasoningEffort: value as ReasoningEffort });
+        });
       });
 
     new Setting(containerEl)

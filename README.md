@@ -12,7 +12,7 @@
 - 显示 `Vault root`、`Current note` 和选区摘要
 - 支持流式回复与取消当前轮
 - 支持运行时探针，验证 Codex CLI 是否可用
-- 支持 `codexPath`、`skipGitRepoCheck`、`sandboxMode`、`approvalPolicy`、`model`、`yoloMode` 设置
+- 支持 `codexPath`、`skipGitRepoCheck`、`sandboxMode`、`approvalPolicy`、`model`、`reasoningEffort`、`yoloMode` 设置
 - 提供 Ribbon 图标和侧边栏标签页图标
 
 ## 非目标
@@ -91,7 +91,9 @@ npm run build
 - `Skip git repo check`
   说明：允许在不是 Git 仓库的 Vault 中运行 Codex
 - `Model`
-  说明：未来 Codex 线程执行默认使用的模型名，默认 `gpt-5-codex`
+  说明：未来 Codex 线程执行默认使用的模型名，默认 `gpt-5.4`
+- `Reasoning effort`
+  说明：未来 Codex 线程默认推理强度，支持 `低 / 中 / 高 / 超高`
 - `YOLO mode`
   说明：持久化高风险开关；开启后未来线程默认使用 `approvalPolicy='never'` 与 `sandboxMode='danger-full-access'`
 - `Sandbox mode`
@@ -109,6 +111,7 @@ npm run build
 2. 打开 Obsidian 后执行命令 `Verify Codex Runtime`
 3. 如果桌面端 Obsidian 找不到 `codex`，把 `command -v codex` 返回的绝对路径填入 `Codex path`
 4. 如需切换默认模型，在 `Model` 中填写完整模型 ID
+5. 如需对齐官方客户端体验，可同时在侧边栏托盘或设置页里调整 `Reasoning effort`
 
 安全说明：
 
@@ -142,6 +145,7 @@ npm run build
 - Windows / Linux 下 `Ctrl + Enter`：换行
 - `Cancel`：中断当前流式回复
 - `New Chat`：清空当前侧边栏对话并重建会话
+- 底部托盘提供模型、推理强度、Vault、YOLO 一体化控制
 
 ### 上下文注入规则
 

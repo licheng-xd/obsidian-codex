@@ -55,6 +55,31 @@ function appendTextBlock(
   return blockEl;
 }
 
+function appendHeader(
+  cardEl: HTMLElement,
+  title: string,
+  statusLabel?: string,
+  statusClassName?: string
+): HTMLDivElement {
+  const headerEl = cardEl.ownerDocument.createElement("div");
+  headerEl.className = "obsidian-codex-card-header";
+
+  const titleEl = cardEl.ownerDocument.createElement("div");
+  titleEl.className = "obsidian-codex-card-title";
+  titleEl.textContent = title;
+  headerEl.appendChild(titleEl);
+
+  if (statusLabel) {
+    const statusEl = cardEl.ownerDocument.createElement("span");
+    statusEl.className = statusClassName ?? "obsidian-codex-card-badge";
+    statusEl.textContent = statusLabel;
+    headerEl.appendChild(statusEl);
+  }
+
+  cardEl.appendChild(headerEl);
+  return headerEl;
+}
+
 export function renderEventCard(
   containerEl: HTMLElement,
   event: MappedEvent,
@@ -67,7 +92,7 @@ export function renderEventCard(
         existingEl,
         "obsidian-codex-message is-assistant obsidian-codex-card is-text"
       );
-      cardEl.textContent = event.text;
+      appendTextBlock(cardEl, "obsidian-codex-card-body", event.text);
       appendIfNeeded(containerEl, cardEl);
       return cardEl;
     }
@@ -79,7 +104,7 @@ export function renderEventCard(
       const summaryButtonEl = cardEl.ownerDocument.createElement("button");
       summaryButtonEl.className = "obsidian-codex-card-toggle";
       summaryButtonEl.type = "button";
-      summaryButtonEl.textContent = expanded ? "Reasoning ▾" : "Reasoning ▸";
+      summaryButtonEl.textContent = expanded ? "Thinking ▾" : "Thinking ▸";
 
       const bodyEl = appendTextBlock(cardEl, "obsidian-codex-card-body", event.text);
       bodyEl.hidden = !expanded;
@@ -87,7 +112,7 @@ export function renderEventCard(
       summaryButtonEl.addEventListener("click", () => {
         const nextExpanded = cardEl.dataset.expanded !== "true";
         cardEl.dataset.expanded = nextExpanded ? "true" : "false";
-        summaryButtonEl.textContent = nextExpanded ? "Reasoning ▾" : "Reasoning ▸";
+        summaryButtonEl.textContent = nextExpanded ? "Thinking ▾" : "Thinking ▸";
         bodyEl.hidden = !nextExpanded;
       });
 
@@ -97,11 +122,12 @@ export function renderEventCard(
     }
     case "command": {
       const cardEl = prepareCard(containerEl, existingEl, "obsidian-codex-card is-command");
-      const headerEl = appendTextBlock(cardEl, "obsidian-codex-card-title", "Command");
-      const statusEl = cardEl.ownerDocument.createElement("span");
-      statusEl.className = `obsidian-codex-command-status is-${event.status}`;
-      statusEl.textContent = event.status === "in_progress" ? "Running" : formatExitCode(event.exitCode);
-      headerEl.appendChild(statusEl);
+      appendHeader(
+        cardEl,
+        "Command",
+        event.status === "in_progress" ? "Running" : formatExitCode(event.exitCode),
+        `obsidian-codex-command-status is-${event.status}`
+      );
       appendTextBlock(cardEl, "obsidian-codex-card-code", event.command);
 
       if (event.aggregatedOutput) {
@@ -116,10 +142,11 @@ export function renderEventCard(
     }
     case "file_change": {
       const cardEl = prepareCard(containerEl, existingEl, "obsidian-codex-card is-file-change");
-      appendTextBlock(
+      appendHeader(
         cardEl,
-        "obsidian-codex-card-title",
-        `File changes (${event.status === "completed" ? "Completed" : "Failed"})`
+        "File changes",
+        event.status === "completed" ? "Completed" : "Failed",
+        `obsidian-codex-card-badge is-${event.status === "completed" ? "success" : "danger"}`
       );
       const listEl = cardEl.ownerDocument.createElement("ul");
       listEl.className = "obsidian-codex-file-change-list";
@@ -140,13 +167,15 @@ export function renderEventCard(
     }
     case "activity": {
       const cardEl = prepareCard(containerEl, existingEl, "obsidian-codex-card is-activity");
-      appendTextBlock(cardEl, "obsidian-codex-card-title", describeActivityType(event.activityType));
+      appendHeader(
+        cardEl,
+        describeActivityType(event.activityType),
+        event.status ? event.status.replace("_", " ") : undefined,
+        event.status ? `obsidian-codex-card-badge is-${event.status === "failed" ? "danger" : "neutral"}` : undefined
+      );
       appendTextBlock(cardEl, "obsidian-codex-card-body", event.title);
       if (event.detail) {
         appendTextBlock(cardEl, "obsidian-codex-card-detail", event.detail);
-      }
-      if (event.status) {
-        appendTextBlock(cardEl, "obsidian-codex-card-status", `Status: ${event.status}`);
       }
       appendIfNeeded(containerEl, cardEl);
       return cardEl;
@@ -154,7 +183,7 @@ export function renderEventCard(
     case "error":
     case "turn_failed": {
       const cardEl = prepareCard(containerEl, existingEl, "obsidian-codex-card is-error");
-      appendTextBlock(cardEl, "obsidian-codex-card-title", "Error");
+      appendHeader(cardEl, "Error", "Failed", "obsidian-codex-card-badge is-danger");
       appendTextBlock(cardEl, "obsidian-codex-card-body", event.message);
       appendIfNeeded(containerEl, cardEl);
       return cardEl;
