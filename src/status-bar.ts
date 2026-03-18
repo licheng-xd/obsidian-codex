@@ -1,4 +1,5 @@
 import {
+  MODEL_CONTEXT_WINDOWS,
   MODEL_OPTIONS,
   REASONING_EFFORT_OPTIONS,
   type ContextUsage,
@@ -10,34 +11,56 @@ function formatCompactCount(value: number): string {
     return String(value);
   }
 
+  if (value >= 1_000_000) {
+    const compactValue = Math.round(value / 100_000) / 10;
+    return `${String(compactValue).replace(/\.0$/, "")}M`;
+  }
+
   const compactValue = value >= 10_000 ? Math.round(value / 1000) : Math.round(value / 100) / 10;
   return `${String(compactValue).replace(/\.0$/, "")}k`;
 }
 
-export function formatContextLocal(
-  used: number,
-  limit: number,
-  historyUsed = 0,
-  historyLimit = limit
-): string {
-  const effectiveLimit = historyUsed > 0 ? historyLimit : limit;
-  if (effectiveLimit <= 0) {
-    return "Ctx 0% · 0";
-  }
-
-  const totalUsed = used + historyUsed;
-  const ratio = Math.max(0, Math.round((totalUsed / effectiveLimit) * 100));
-  return `Ctx ${ratio}% · ${formatCompactCount(totalUsed)}`;
+export function getModelContextWindow(model: string): number | null {
+  return MODEL_CONTEXT_WINDOWS[model as keyof typeof MODEL_CONTEXT_WINDOWS] ?? null;
 }
 
-function formatContextTitle(
-  used: number,
-  localLimit: number,
-  historyUsed: number,
-  historyLimit: number
+export function formatTurnWindowUsage(
+  model: string,
+  inputTokens: number | null
 ): string {
-  const totalUsed = used + historyUsed;
-  return `Context: current ${formatCompactCount(used)} / ${formatCompactCount(localLimit)} · history ${formatCompactCount(historyUsed)} · total ${formatCompactCount(totalUsed)} / ${formatCompactCount(historyLimit)}`;
+  if (inputTokens === null) {
+    return "Turn pending";
+  }
+
+  const contextWindow = getModelContextWindow(model);
+  if (!contextWindow || contextWindow <= 0) {
+    return `Turn ${formatCompactCount(inputTokens)}`;
+  }
+
+  const ratio = Math.max(0, Math.round((inputTokens / contextWindow) * 100));
+  return `Turn ${ratio}% · ${formatCompactCount(inputTokens)} / ${formatCompactCount(contextWindow)}`;
+}
+
+function formatTurnWindowTitle(
+  model: string,
+  usage: ContextUsage
+): string {
+  const contextWindow = getModelContextWindow(model);
+  const estimatedTotal = usage.localCharsUsed + usage.threadCharsUsedEstimate;
+  const windowText = usage.sdkInputTokens === null
+    ? "pending"
+    : contextWindow
+      ? `${formatCompactCount(usage.sdkInputTokens)} / ${formatCompactCount(contextWindow)}`
+      : `${formatCompactCount(usage.sdkInputTokens)}`;
+
+  return [
+    `Turn input: ${windowText}`,
+    `Cached input: ${usage.sdkCachedInputTokens === null ? "pending" : formatCompactCount(usage.sdkCachedInputTokens)}`,
+    `Output: ${usage.sdkOutputTokens === null ? "pending" : formatCompactCount(usage.sdkOutputTokens)}`,
+    `Est. local: ${formatCompactCount(usage.localCharsUsed)} / ${formatCompactCount(usage.localCharsLimit)}`,
+    `Est. history: ${formatCompactCount(usage.threadCharsUsedEstimate)} / ${formatCompactCount(usage.threadCharsLimitEstimate)}`,
+    `Est. total: ${formatCompactCount(estimatedTotal)}`
+  ].join(" · ");
 }
 
 export function formatLastTurnUsage(
@@ -93,6 +116,15 @@ export class StatusBar {
   private readonly yoloToggleEl: HTMLButtonElement;
   private currentModel: string;
   private currentReasoningEffort: ReasoningEffort;
+  private currentContextUsage: ContextUsage = {
+    localCharsUsed: 0,
+    localCharsLimit: 4000,
+    threadCharsUsedEstimate: 0,
+    threadCharsLimitEstimate: 40000,
+    sdkInputTokens: null,
+    sdkCachedInputTokens: null,
+    sdkOutputTokens: null
+  };
 
   constructor(
     containerEl: HTMLElement,
@@ -152,15 +184,7 @@ export class StatusBar {
 
     this.rebuildModelMenu();
     this.rebuildReasoningMenu();
-    this.updateContextUsage({
-      localCharsUsed: 0,
-      localCharsLimit: 4000,
-      threadCharsUsedEstimate: 0,
-      threadCharsLimitEstimate: 40000,
-      sdkInputTokens: null,
-      sdkCachedInputTokens: null,
-      sdkOutputTokens: null
-    });
+    this.updateContextUsage(this.currentContextUsage);
     this.updateModel(initialModel);
     this.updateReasoningEffort(initialReasoningEffort);
     this.updateYolo(initialYolo);
@@ -168,24 +192,19 @@ export class StatusBar {
   }
 
   updateContextUsage(usage: ContextUsage): void {
-    this.localUsageEl.textContent = formatContextLocal(
-      usage.localCharsUsed,
-      usage.localCharsLimit,
-      usage.threadCharsUsedEstimate,
-      usage.threadCharsLimitEstimate
+    this.currentContextUsage = usage;
+    this.localUsageEl.textContent = formatTurnWindowUsage(
+      this.currentModel,
+      usage.sdkInputTokens
     );
-    this.localUsageEl.title = formatContextTitle(
-      usage.localCharsUsed,
-      usage.localCharsLimit,
-      usage.threadCharsUsedEstimate,
-      usage.threadCharsLimitEstimate
-    );
+    this.localUsageEl.title = formatTurnWindowTitle(this.currentModel, usage);
   }
 
   updateModel(model: string): void {
     this.currentModel = model;
     this.modelTriggerEl.textContent = getModelSelectLabel(model);
     this.rebuildModelMenu();
+    this.updateContextUsage(this.currentContextUsage);
   }
 
   updateReasoningEffort(effort: ReasoningEffort): void {

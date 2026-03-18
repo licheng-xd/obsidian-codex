@@ -3,6 +3,11 @@ export const MODEL_OPTIONS = [
   { id: "gpt-5.3-codex", label: "GPT-5.3-Codex" }
 ] as const;
 
+export const MODEL_CONTEXT_WINDOWS = {
+  "gpt-5.4": 1_050_000,
+  "gpt-5.3-codex": 400_000
+} as const;
+
 export const MODEL_PRESETS = MODEL_OPTIONS.map((option) => option.id);
 
 export const DEFAULT_MODEL = MODEL_OPTIONS[0].id;
