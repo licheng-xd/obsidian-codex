@@ -20,46 +20,63 @@ function formatCompactCount(value: number): string {
   return `${String(compactValue).replace(/\.0$/, "")}k`;
 }
 
+function formatEstimatedCount(value: number): string {
+  if (value <= 0) {
+    return "0";
+  }
+
+  return `~${formatCompactCount(value)}`;
+}
+
+function estimateSessionContextTokens(usage: ContextUsage): number {
+  // Codex SDK only exposes aggregate per-turn usage, not the live thread window size.
+  // Use visible session history as a conservative proxy for current context growth.
+  return Math.max(0, Math.round(usage.threadCharsUsedEstimate));
+}
+
 export function getModelContextWindow(model: string): number | null {
   return MODEL_CONTEXT_WINDOWS[model as keyof typeof MODEL_CONTEXT_WINDOWS] ?? null;
 }
 
-export function formatTurnWindowUsage(
+export function formatContextWindowUsage(
   model: string,
-  inputTokens: number | null
+  usage: ContextUsage
 ): string {
-  if (inputTokens === null) {
-    return "Turn pending";
-  }
+  const estimatedTokens = estimateSessionContextTokens(usage);
 
   const contextWindow = getModelContextWindow(model);
   if (!contextWindow || contextWindow <= 0) {
-    return `Turn ${formatCompactCount(inputTokens)}`;
+    return `Context ${formatEstimatedCount(estimatedTokens)}`;
   }
 
-  const ratio = Math.max(0, Math.round((inputTokens / contextWindow) * 100));
-  return `Turn ${ratio}% · ${formatCompactCount(inputTokens)} / ${formatCompactCount(contextWindow)}`;
+  const displayedTokens = Math.min(estimatedTokens, contextWindow);
+  const ratio = Math.max(0, Math.min(100, Math.round((displayedTokens / contextWindow) * 100)));
+  const usedText = displayedTokens === 0 ? "0" : formatEstimatedCount(displayedTokens);
+  return `Context ${ratio}% · ${usedText} / ${formatCompactCount(contextWindow)}`;
 }
 
-function formatTurnWindowTitle(
+function formatContextWindowTitle(
   model: string,
   usage: ContextUsage
 ): string {
   const contextWindow = getModelContextWindow(model);
-  const estimatedTotal = usage.localCharsUsed + usage.threadCharsUsedEstimate;
-  const windowText = usage.sdkInputTokens === null
-    ? "pending"
-    : contextWindow
-      ? `${formatCompactCount(usage.sdkInputTokens)} / ${formatCompactCount(contextWindow)}`
-      : `${formatCompactCount(usage.sdkInputTokens)}`;
+  const estimatedTokens = estimateSessionContextTokens(usage);
+  const windowText = contextWindow
+    ? `${formatEstimatedCount(Math.min(estimatedTokens, contextWindow))} / ${formatCompactCount(contextWindow)}`
+    : formatEstimatedCount(estimatedTokens);
 
   return [
-    `Turn input: ${windowText}`,
-    `Cached input: ${usage.sdkCachedInputTokens === null ? "pending" : formatCompactCount(usage.sdkCachedInputTokens)}`,
-    `Output: ${usage.sdkOutputTokens === null ? "pending" : formatCompactCount(usage.sdkOutputTokens)}`,
-    `Est. local: ${formatCompactCount(usage.localCharsUsed)} / ${formatCompactCount(usage.localCharsLimit)}`,
-    `Est. history: ${formatCompactCount(usage.threadCharsUsedEstimate)} / ${formatCompactCount(usage.threadCharsLimitEstimate)}`,
-    `Est. total: ${formatCompactCount(estimatedTotal)}`
+    `Context est.: ${windowText}`,
+    `Visible history: ${formatCompactCount(usage.threadCharsUsedEstimate)} chars`,
+    `Pending local: ${formatCompactCount(usage.localCharsUsed)} / ${formatCompactCount(usage.localCharsLimit)} chars`,
+    formatLastTurnUsage(
+      usage.sdkInputTokens,
+      usage.sdkCachedInputTokens,
+      usage.sdkOutputTokens
+    ),
+    usage.sdkInputTokens === null
+      ? "Turn input note: pending"
+      : "Turn input note: aggregate across the completed turn, not live thread window"
   ].join(" · ");
 }
 
@@ -193,11 +210,11 @@ export class StatusBar {
 
   updateContextUsage(usage: ContextUsage): void {
     this.currentContextUsage = usage;
-    this.localUsageEl.textContent = formatTurnWindowUsage(
+    this.localUsageEl.textContent = formatContextWindowUsage(
       this.currentModel,
-      usage.sdkInputTokens
+      usage
     );
-    this.localUsageEl.title = formatTurnWindowTitle(this.currentModel, usage);
+    this.localUsageEl.title = formatContextWindowTitle(this.currentModel, usage);
   }
 
   updateModel(model: string): void {

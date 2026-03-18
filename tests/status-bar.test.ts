@@ -1,22 +1,71 @@
 import { describe, expect, it } from "vitest";
-import { MODEL_OPTIONS } from "../src/types";
+import { MODEL_OPTIONS, type ContextUsage } from "../src/types";
 import {
+  formatContextWindowUsage,
   formatLastTurnUsage,
-  formatTurnWindowUsage,
   getModelContextWindow,
   getModelSelectLabel,
   getReasoningEffortLabel
 } from "../src/status-bar";
 
 describe("status-bar helpers", () => {
-  it("formats real turn token usage against the model context window", () => {
-    expect(formatTurnWindowUsage("gpt-5.4", null)).toBe("Turn pending");
-    expect(formatTurnWindowUsage("gpt-5.4", 12034)).toBe("Turn 1% · 12k / 1.1M");
-    expect(formatTurnWindowUsage("gpt-5.3-codex", 48000)).toBe("Turn 12% · 48k / 400k");
+  function createUsage(overrides: Partial<ContextUsage> = {}): ContextUsage {
+    return {
+      localCharsUsed: 0,
+      localCharsLimit: 4000,
+      threadCharsUsedEstimate: 0,
+      threadCharsLimitEstimate: 40000,
+      sdkInputTokens: null,
+      sdkCachedInputTokens: null,
+      sdkOutputTokens: null,
+      ...overrides
+    };
+  }
+
+  it("formats the current session estimate against the model context window", () => {
+    expect(formatContextWindowUsage("gpt-5.4", createUsage())).toBe("Context 0% · 0 / 1.1M");
+    expect(
+      formatContextWindowUsage(
+        "gpt-5.4",
+        createUsage({
+          threadCharsUsedEstimate: 220_000,
+          sdkInputTokens: 2_400_000
+        })
+      )
+    ).toBe("Context 21% · ~220k / 1.1M");
+    expect(
+      formatContextWindowUsage(
+        "gpt-5.3-codex",
+        createUsage({
+          threadCharsUsedEstimate: 48_000,
+          sdkInputTokens: 120_000
+        })
+      )
+    ).toBe("Context 12% · ~48k / 400k");
   });
 
-  it("falls back to raw input tokens when the model window is unknown", () => {
-    expect(formatTurnWindowUsage("custom-model", 12034)).toBe("Turn 12k");
+  it("caps the displayed session ratio at 100%", () => {
+    expect(
+      formatContextWindowUsage(
+        "gpt-5.4",
+        createUsage({
+          threadCharsUsedEstimate: 2_400_000,
+          sdkInputTokens: 2_400_000
+        })
+      )
+    ).toBe("Context 100% · ~1.1M / 1.1M");
+  });
+
+  it("falls back to the estimated session size when the model window is unknown", () => {
+    expect(
+      formatContextWindowUsage(
+        "custom-model",
+        createUsage({
+          threadCharsUsedEstimate: 12034,
+          sdkInputTokens: 48000
+        })
+      )
+    ).toBe("Context ~12k");
   });
 
   it("formats last turn usage", () => {

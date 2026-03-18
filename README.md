@@ -119,11 +119,11 @@ cp styles.css "$PLUGIN_DIR/"
 
 底部托盘里当前有两类和运行状态相关的信息：
 
-### 1. `Turn X% · in / window`
+### 1. `Context X% · ~used / window`
 
-这是当前最可靠的“真实窗口占用”指标，基于 Codex SDK 每轮返回的 usage 计算：
+这是当前会话的可见历史估算值，不再直接使用 `turn.completed.usage.input_tokens` 作为“实时窗口占用”：
 
-- 分子：上一轮真实 `input_tokens`
+- 分子：插件自己统计的可见会话历史大小估算值
 - 分母：当前模型的官方 context window
 
 当前已内置的窗口映射：
@@ -131,19 +131,24 @@ cp styles.css "$PLUGIN_DIR/"
 - `gpt-5.4` -> `1.05M`
 - `gpt-5.3-codex` -> `400k`
 
-如果是未知自定义模型，没有官方窗口映射，就只显示 `Turn 12k` 这种输入 token 数，不会伪造百分比。
+为什么这样做：
+
+- Codex SDK 的 `turn.completed.usage` 表示“本轮总 usage”，不是当前线程实时占用
+- 一轮里如果发生多次内部推理 / 工具循环，`input_tokens` 可以累计超过单次 context window
+- 因此主展示改成 `Context`，并明确是估算值
+
+如果是未知自定义模型，没有官方窗口映射，就只显示 `Context ~12k` 这种估算值，不伪造百分比。
 
 ### 2. Hover 说明里的估算值
 
 悬浮到状态指标上时，还会看到：
 
-- `Cached input`
-- `Output`
-- `Est. local`
-- `Est. history`
-- `Est. total`
+- `Context est.`
+- `Visible history`
+- `Pending local`
+- `Last turn`
 
-这里的 `Est.*` 是插件自己的字符级估算，只用于辅助理解本地注入和历史积累，不代表模型真实窗口占用。
+这里会同时保留上一轮 SDK usage 说明，但只作为“上一轮总消耗”参考，不再当作当前线程窗口占用。
 
 ## 上下文注入规则
 
