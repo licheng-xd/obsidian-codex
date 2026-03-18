@@ -2,9 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   NOTE_CHAR_LIMIT,
   buildContextPayload,
-  deriveDefaultSaveDirectory,
   measureLocalContextUsage
 } from "../src/context-builder";
+import { VAULT_ROOT_DIRECTORY } from "../src/vault-save-planner";
 
 describe("buildContextPayload", () => {
   it("prioritizes selection before note context", () => {
@@ -26,9 +26,7 @@ describe("buildContextPayload", () => {
       userInput: "Just chat."
     });
 
-    expect(payload).toContain("User request:\nJust chat.");
-    expect(payload).toContain("Local save guidance:");
-    expect(payload).toContain("default to the vault root");
+    expect(payload).toBe("User request:\nJust chat.");
   });
 
   it("includes note excerpt when no selection is provided", () => {
@@ -42,27 +40,42 @@ describe("buildContextPayload", () => {
     expect(payload).toContain("First line.");
   });
 
-  it("defaults local saves to the current note sibling directory", () => {
+  it("includes planner-driven local save guidance when provided", () => {
     const payload = buildContextPayload({
       userInput: "Save this report locally",
       activeNotePath: "Projects/AI/note.md",
-      activeNoteContent: "Summary"
+      activeNoteContent: "Summary",
+      saveTargetPlan: {
+        preferredDirectory: "Projects/AI/reports",
+        reason: "README.md suggests report content belongs in Projects/AI/reports.",
+        confidence: "high",
+        fallbackChain: ["Projects/AI", VAULT_ROOT_DIRECTORY],
+        contentType: "report"
+      }
     });
 
     expect(payload).toContain("Local save guidance:");
-    expect(payload).toContain("default to the current note's sibling directory: Projects/AI");
-    expect(payload).toContain("Do not place new files in the vault root by default.");
+    expect(payload).toContain("Preferred directory: Projects/AI/reports");
+    expect(payload).toContain("Reason: README.md suggests report content belongs in Projects/AI/reports.");
+    expect(payload).toContain("Fallbacks: Projects/AI -> vault root");
   });
 
-  it("defaults local saves to the vault root for root-level notes", () => {
+  it("renders the vault root label when the planner points to the root", () => {
     const payload = buildContextPayload({
       userInput: "Save this report locally",
       activeNotePath: "note.md",
-      activeNoteContent: "Summary"
+      activeNoteContent: "Summary",
+      saveTargetPlan: {
+        preferredDirectory: VAULT_ROOT_DIRECTORY,
+        reason: "No clear vault rule matched and there is no active note, so the vault root is the final fallback.",
+        confidence: "low",
+        fallbackChain: [],
+        contentType: "report"
+      }
     });
 
-    expect(payload).toContain("default to the vault root.");
-    expect(payload).toContain("current note already lives in the vault root");
+    expect(payload).toContain("Preferred directory: vault root");
+    expect(payload).toContain("Fallbacks: none");
   });
 
   it("truncates overly long notes according to the char limit", () => {
@@ -121,19 +134,5 @@ describe("buildContextPayload", () => {
       used: NOTE_CHAR_LIMIT,
       limit: NOTE_CHAR_LIMIT
     });
-  });
-});
-
-describe("deriveDefaultSaveDirectory", () => {
-  it("returns the sibling directory for nested notes", () => {
-    expect(deriveDefaultSaveDirectory("Projects/AI/note.md")).toBe("Projects/AI");
-  });
-
-  it("returns an empty string for root-level notes", () => {
-    expect(deriveDefaultSaveDirectory("note.md")).toBe("");
-  });
-
-  it("returns null when there is no active note", () => {
-    expect(deriveDefaultSaveDirectory()).toBeNull();
   });
 });

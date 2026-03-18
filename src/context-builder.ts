@@ -1,8 +1,14 @@
+import {
+  VAULT_ROOT_DIRECTORY,
+  type VaultSaveTargetPlan
+} from "./vault-save-planner";
+
 export interface ContextInput {
   userInput: string;
   activeNotePath?: string;
   activeNoteContent?: string;
   selectionText?: string;
+  saveTargetPlan?: VaultSaveTargetPlan;
 }
 
 export const NOTE_CHAR_LIMIT = 4000;
@@ -24,43 +30,22 @@ function buildNoteExcerpt(input: Pick<ContextInput, "activeNotePath" | "activeNo
   return sanitizeNoteContent(input.activeNoteContent, input.selectionText).trim();
 }
 
-export function deriveDefaultSaveDirectory(activeNotePath?: string): string | null {
-  if (!activeNotePath) {
-    return null;
-  }
-
-  const lastSlashIndex = activeNotePath.lastIndexOf("/");
-  if (lastSlashIndex === -1) {
-    return "";
-  }
-
-  return activeNotePath.slice(0, lastSlashIndex);
+function formatSaveDirectory(path: string): string {
+  return path === VAULT_ROOT_DIRECTORY ? "vault root" : path;
 }
 
-function buildSaveGuidance(activeNotePath?: string): string {
-  const defaultSaveDirectory = deriveDefaultSaveDirectory(activeNotePath);
-
-  if (defaultSaveDirectory) {
-    return [
-      "Local save guidance:",
-      `- When creating or saving a new local file, default to the current note's sibling directory: ${defaultSaveDirectory}`,
-      "- Use a vault-relative path inside that directory unless the user explicitly asks for a different location.",
-      "- Do not place new files in the vault root by default."
-    ].join("\n");
-  }
-
-  if (activeNotePath) {
-    return [
-      "Local save guidance:",
-      "- When creating or saving a new local file, default to the vault root.",
-      "- The current note already lives in the vault root, so sibling files should go there by default."
-    ].join("\n");
-  }
+function buildSaveGuidance(plan: VaultSaveTargetPlan): string {
+  const fallbackText = plan.fallbackChain.length > 0
+    ? plan.fallbackChain.map(formatSaveDirectory).join(" -> ")
+    : "none";
 
   return [
     "Local save guidance:",
-    "- When creating or saving a new local file, default to the vault root.",
-    "- There is no open note, so the vault root is the fallback location."
+    `- Preferred directory: ${formatSaveDirectory(plan.preferredDirectory)}`,
+    `- Reason: ${plan.reason}`,
+    `- Confidence: ${plan.confidence}`,
+    `- Fallbacks: ${fallbackText}`,
+    "- When saving locally, use the preferred directory unless the user explicitly asks for a different location."
   ].join("\n");
 }
 
@@ -76,7 +61,9 @@ export function buildContextPayload(input: ContextInput): string {
     sections.push(`Active note (${input.activeNotePath}):\n${excerpt}`);
   }
 
-  sections.push(buildSaveGuidance(input.activeNotePath));
+  if (input.saveTargetPlan) {
+    sections.push(buildSaveGuidance(input.saveTargetPlan));
+  }
 
   return sections.join("\n\n");
 }

@@ -4,6 +4,8 @@ import {
   MarkdownRenderer,
   MarkdownView,
   Notice,
+  TFile,
+  TFolder,
   WorkspaceLeaf,
   setIcon
 } from "obsidian";
@@ -43,10 +45,21 @@ import type {
   MappedSummaryEvent,
   MappedTextEvent
 } from "./types";
+import {
+  planVaultSaveTarget,
+  requestLooksLikeLocalSave,
+  type DirectorySnapshot,
+  type GuidanceDocument
+} from "./vault-save-planner";
 import { getWelcomeTitle } from "./welcome-title";
 
 export const CODEX_CHAT_VIEW_TYPE = "obsidian-codex-chat";
 const SELECTION_CHANGE_DEBOUNCE_MS = 120;
+const SAVE_PLANNER_GUIDANCE_FILE_LIMIT = 4;
+const SAVE_PLANNER_GUIDANCE_CHAR_LIMIT = 2000;
+const SAVE_PLANNER_FOLDER_DEPTH_LIMIT = 3;
+const SAVE_PLANNER_FOLDER_LIMIT = 40;
+const SAVE_PLANNER_SAMPLE_FILE_LIMIT = 5;
 
 type ChatMessageRole = "user" | "status";
 
@@ -741,9 +754,139 @@ export class ChatView extends ItemView {
     return this.app.workspace.getActiveFile()?.path ?? "";
   }
 
+  private getLatestAssistantMarkdown(): string | undefined {
+    for (let index = this.sessionEntries.length - 1; index >= 0; index -= 1) {
+      const entry = this.sessionEntries[index];
+      if (entry?.type === "assistant" && entry.contentMarkdown.trim()) {
+        return entry.contentMarkdown;
+      }
+    }
+
+    return undefined;
+  }
+
+  private extractDraftTitle(markdown?: string): string | undefined {
+    if (!markdown) {
+      return undefined;
+    }
+
+    const lines = markdown.split(/\r?\n/);
+    for (const rawLine of lines) {
+      const line = rawLine.trim();
+      if (!line) {
+        continue;
+      }
+
+      return line.replace(/^#+\s*/, "").slice(0, 120);
+    }
+
+    return undefined;
+  }
+
+  private isGuidanceFile(file: TFile): boolean {
+    const extension = file.extension.toLowerCase();
+    if (extension !== "md" && extension !== "txt") {
+      return false;
+    }
+
+    return /^(readme|index|moc|guide|guidelines|conventions|structure|vault|about)$/i.test(file.basename) ||
+      /(指南|约定|说明|结构|索引|目录)/.test(file.basename);
+  }
+
+  private async collectVaultGuidanceDocuments(): Promise<GuidanceDocument[]> {
+    const root = this.app.vault.getRoot();
+    const guidanceFiles = root.children
+      .filter((child): child is TFile => child instanceof TFile)
+      .filter((file) => this.isGuidanceFile(file))
+      .slice(0, SAVE_PLANNER_GUIDANCE_FILE_LIMIT);
+
+    return Promise.all(
+      guidanceFiles.map(async (file) => ({
+        path: file.path,
+        content: (await this.app.vault.cachedRead(file)).slice(0, SAVE_PLANNER_GUIDANCE_CHAR_LIMIT)
+      }))
+    );
+  }
+
+  private collectDirectorySnapshot(): DirectorySnapshot[] {
+    const snapshots: DirectorySnapshot[] = [];
+    const root = this.app.vault.getRoot();
+
+    const visitFolder = (folder: TFolder, depth: number): void => {
+      if (depth > SAVE_PLANNER_FOLDER_DEPTH_LIMIT || snapshots.length >= SAVE_PLANNER_FOLDER_LIMIT) {
+        return;
+      }
+
+      if (!folder.isRoot()) {
+        snapshots.push({
+          path: folder.path,
+          sampleFiles: this.collectDirectorySampleFiles(folder)
+        });
+      }
+
+      for (const child of folder.children) {
+        if (child instanceof TFolder) {
+          visitFolder(child, depth + 1);
+        }
+      }
+    };
+
+    visitFolder(root, 0);
+
+    return snapshots;
+  }
+
+  private collectDirectorySampleFiles(folder: TFolder): string[] {
+    const sampleFiles: string[] = [];
+
+    const collectFromFolder = (current: TFolder, depth: number): void => {
+      if (depth > 1 || sampleFiles.length >= SAVE_PLANNER_SAMPLE_FILE_LIMIT) {
+        return;
+      }
+
+      for (const child of current.children) {
+        if (sampleFiles.length >= SAVE_PLANNER_SAMPLE_FILE_LIMIT) {
+          return;
+        }
+
+        if (child instanceof TFile) {
+          if (child.extension.toLowerCase() === "md" || child.extension.toLowerCase() === "txt") {
+            sampleFiles.push(child.basename);
+          }
+          continue;
+        }
+
+        if (child instanceof TFolder) {
+          collectFromFolder(child, depth + 1);
+        }
+      }
+    };
+
+    collectFromFolder(folder, 0);
+    return sampleFiles;
+  }
+
+  private async buildSaveTargetPlan(userInput: string, activeNotePath?: string) {
+    if (!requestLooksLikeLocalSave(userInput)) {
+      return undefined;
+    }
+
+    const latestAssistantMarkdown = this.getLatestAssistantMarkdown();
+    return planVaultSaveTarget({
+      userInput,
+      activeNotePath,
+      guidanceDocuments: await this.collectVaultGuidanceDocuments(),
+      directorySnapshot: this.collectDirectorySnapshot(),
+      draftTitle: this.extractDraftTitle(latestAssistantMarkdown),
+      draftExcerpt: latestAssistantMarkdown?.slice(0, 1200)
+    });
+  }
+
   private async collectContext(userInput: string): Promise<ContextInput> {
     const markdownView = this.app.workspace.getActiveViewOfType(MarkdownView);
     const file = markdownView?.file ?? this.app.workspace.getActiveFile() ?? undefined;
+    const activeNotePath = file?.path;
+    const saveTargetPlan = await this.buildSaveTargetPlan(userInput, activeNotePath);
 
     if (markdownView?.editor && file) {
       const selectionText = markdownView.editor.getSelection() || undefined;
@@ -751,7 +894,8 @@ export class ChatView extends ItemView {
         userInput,
         activeNotePath: file.path,
         activeNoteContent: markdownView.editor.getValue(),
-        selectionText
+        selectionText,
+        saveTargetPlan
       };
     }
 
@@ -759,10 +903,14 @@ export class ChatView extends ItemView {
       return {
         userInput,
         activeNotePath: file.path,
-        activeNoteContent: await this.app.vault.cachedRead(file)
+        activeNoteContent: await this.app.vault.cachedRead(file),
+        saveTargetPlan
       };
     }
 
-    return { userInput };
+    return {
+      userInput,
+      saveTargetPlan
+    };
   }
 }
