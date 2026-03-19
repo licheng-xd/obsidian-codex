@@ -16,6 +16,7 @@ describe("sanitizePluginSettings", () => {
       sanitizePluginSettings({
         codexPath: "/custom/bin/codex",
         skipGitRepoCheck: false,
+        includeActiveNoteContext: true,
         sandboxMode: "danger-full-access",
         approvalPolicy: "never",
         model: "gpt-5.3-codex",
@@ -25,6 +26,7 @@ describe("sanitizePluginSettings", () => {
     ).toEqual({
       codexPath: "/custom/bin/codex",
       skipGitRepoCheck: false,
+      includeActiveNoteContext: true,
       sandboxMode: "danger-full-access",
       approvalPolicy: "never",
       model: "gpt-5.3-codex",

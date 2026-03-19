@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   NOTE_CHAR_LIMIT,
+  omitActiveNoteContext,
   buildContextPayload,
   measureLocalContextUsage
 } from "../src/context-builder";
@@ -107,6 +108,20 @@ describe("buildContextPayload", () => {
         .split("Active note (dup.md):\n")[1]
         ?.split("\n\nLocal save guidance:")[0] ?? "";
     expect(noteSection).not.toContain("Selection is");
+  });
+
+  it("can omit the active note excerpt while preserving selected text", () => {
+    const payload = buildContextPayload(
+      omitActiveNoteContext({
+        userInput: "Only use my explicit selection",
+        activeNotePath: "dup.md",
+        activeNoteContent: "Selection is inside this note.",
+        selectionText: "Selection is"
+      })
+    );
+
+    expect(payload).toContain("Selected text:\nSelection is");
+    expect(payload).not.toContain("Active note (dup.md):");
   });
 
   it("measures local context usage from selection and note excerpt", () => {

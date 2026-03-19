@@ -15,13 +15,16 @@ import { renderMarkdownMessage } from "./assistant-markdown";
 import type {
   PersistedAssistantEntry,
   PersistedChatEntry,
+  PersistedChatSession,
   PersistedSummaryItem
 } from "./chat-session";
+import { getSessionDisplayTitle, resolveSessionTitle, upsertRecentSession } from "./chat-session";
 import {
   NOTE_CHAR_LIMIT,
   THREAD_CONTEXT_CHAR_LIMIT,
   buildContextPayload,
   measureLocalContextUsage,
+  omitActiveNoteContext,
   type ContextInput
 } from "./context-builder";
 import { CODEX_ICON } from "./codex-icon";
@@ -87,10 +90,15 @@ export class ChatView extends ItemView {
   private emptyStateEl!: HTMLDivElement;
   private messagesEl!: HTMLDivElement;
   private inputEl!: HTMLTextAreaElement;
+  private historyButtonEl!: HTMLButtonElement;
+  private historyPopoverEl!: HTMLDivElement;
+  private historyListEl!: HTMLDivElement;
   private cancelButtonEl!: HTMLButtonElement;
   private newChatButtonEl!: HTMLButtonElement;
   private statusBar: StatusBar | null = null;
   private sessionEntries: PersistedChatEntry[] = [];
+  private recentSessions: PersistedChatSession[] = [];
+  private activeSessionId: string | null = null;
   private activeThreadId: string | null = null;
   private sessionStarted = false;
   private isSending = false;
@@ -124,15 +132,32 @@ export class ChatView extends ItemView {
 
   async onOpen(): Promise<void> {
     this.render();
-    await this.restoreLastSession();
+    this.recentSessions = [...this.plugin.recentSessions];
+    this.activeSessionId = this.plugin.activeSessionId;
+    this.renderHistorySessionList();
+    await this.restoreActiveSession();
     void this.updateContextSummary();
     this.registerEvent(this.app.workspace.on("active-leaf-change", () => void this.updateContextSummary()));
     this.registerDomEvent(document, "selectionchange", () => this.scheduleContextSummaryUpdate());
+    this.registerDomEvent(document, "mousedown", (event: MouseEvent) => {
+      const target = event.target;
+      if (!(target instanceof Node) || !this.historyPopoverEl) {
+        return;
+      }
+
+      if (
+        this.historyPopoverEl.classList.contains("is-open") &&
+        !this.historyPopoverEl.contains(target) &&
+        !this.historyButtonEl.contains(target)
+      ) {
+        this.setHistoryPopoverOpen(false);
+      }
+    });
   }
 
   async onClose(): Promise<void> {
     this.clearScheduledContextSummaryUpdate();
-    this.plugin.codexService.cancelCurrentTurn();
+    this.plugin.codexService.clearThread();
     this.statusBar?.destroy();
     this.statusBar = null;
   }
@@ -158,6 +183,17 @@ export class ChatView extends ItemView {
     this.messagesEl = stageEl.createDiv({ cls: "obsidian-codex-messages" });
 
     const stageActionsEl = contentEl.createDiv({ cls: "obsidian-codex-stage-actions" });
+    const historyShellEl = stageActionsEl.createDiv({ cls: "obsidian-codex-history-shell" });
+    this.historyButtonEl = this.createTrayActionButton(
+      historyShellEl,
+      "history",
+      "Recent sessions",
+      () => this.toggleHistoryPopover(),
+      false,
+      "is-history"
+    );
+    this.historyPopoverEl = historyShellEl.createDiv({ cls: "obsidian-codex-history-popover" });
+    this.historyListEl = this.historyPopoverEl.createDiv({ cls: "obsidian-codex-history-list" });
     this.newChatButtonEl = this.createTrayActionButton(
       stageActionsEl,
       "plus",
@@ -255,6 +291,71 @@ export class ChatView extends ItemView {
     return buttonEl;
   }
 
+  private toggleHistoryPopover(): void {
+    if (this.historyButtonEl.disabled) {
+      return;
+    }
+
+    this.setHistoryPopoverOpen(!this.historyPopoverEl.classList.contains("is-open"));
+  }
+
+  private setHistoryPopoverOpen(isOpen: boolean): void {
+    this.historyButtonEl.classList.toggle("is-active", isOpen);
+    this.historyButtonEl.setAttribute("aria-expanded", isOpen ? "true" : "false");
+    this.historyPopoverEl.classList.toggle("is-open", isOpen);
+  }
+
+  private renderHistorySessionList(): void {
+    this.historyListEl.replaceChildren();
+
+    if (this.recentSessions.length === 0) {
+      this.historyListEl.createDiv({
+        cls: "obsidian-codex-history-empty",
+        text: "No recent sessions yet."
+      });
+      return;
+    }
+
+    for (const session of this.recentSessions) {
+      const itemEl = this.historyListEl.createDiv({
+        cls: "obsidian-codex-history-item"
+      });
+      itemEl.tabIndex = 0;
+      itemEl.setAttr("role", "button");
+      itemEl.classList.toggle("is-active", session.threadId === this.activeSessionId);
+
+      const title = getSessionDisplayTitle(session);
+      const timestamp = this.formatHistoryTimestamp(session.updatedAt);
+      itemEl.setAttr("aria-label", `${title} · ${timestamp}`);
+
+      const titleEl = itemEl.createDiv({ cls: "obsidian-codex-history-item-title" });
+      titleEl.setText(title);
+
+      const metaEl = itemEl.createDiv({ cls: "obsidian-codex-history-item-meta" });
+      metaEl.setText(timestamp);
+
+      const activateSession = () => {
+        void this.activatePersistedSession(session.threadId);
+      };
+
+      itemEl.addEventListener("click", activateSession);
+      itemEl.addEventListener("keydown", (event: KeyboardEvent) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          activateSession();
+        }
+      });
+    }
+  }
+
+  private formatHistoryTimestamp(updatedAt: number): string {
+    if (updatedAt <= 0) {
+      return "Unknown time";
+    }
+
+    return new Date(updatedAt).toLocaleString();
+  }
+
   private createAssistantTurn(): AssistantTurnElements {
     const rootEl = this.messagesEl.createDiv({ cls: "obsidian-codex-turn" });
 
@@ -309,6 +410,7 @@ export class ChatView extends ItemView {
   }
 
   private updateComposerState(): void {
+    this.historyButtonEl.disabled = this.isSending;
     this.cancelButtonEl.disabled = !this.isSending;
     this.inputEl.disabled = this.isSending;
   }
@@ -324,7 +426,8 @@ export class ChatView extends ItemView {
   }
 
   private resetConversation(): void {
-    this.plugin.codexService.cancelCurrentTurn();
+    this.plugin.codexService.clearThread();
+    this.activeSessionId = null;
     this.activeThreadId = null;
     this.sessionEntries = [];
     this.sessionStarted = false;
@@ -341,7 +444,9 @@ export class ChatView extends ItemView {
     this.setSendingState(false);
     this.statusBar?.updateContextUsage(this.contextUsage);
     this.refreshCanvasState();
-    void this.plugin.clearLastSession();
+    this.setHistoryPopoverOpen(false);
+    this.renderHistorySessionList();
+    void this.plugin.setActiveSession(null);
     void this.updateContextSummary();
   }
 
@@ -356,7 +461,7 @@ export class ChatView extends ItemView {
     messageEl.setText(text);
     if (persist) {
       this.sessionEntries.push({ type: role, text });
-      void this.persistLastSession();
+      void this.persistActiveSession();
     }
     this.refreshCanvasState();
     this.scrollMessagesToBottom();
@@ -397,13 +502,10 @@ export class ChatView extends ItemView {
     }
   }
 
-  private async restoreLastSession(): Promise<void> {
-    const session = this.plugin.lastSession;
-    if (!session) {
-      return;
-    }
-
+  private async renderPersistedSession(session: PersistedChatSession): Promise<void> {
+    this.messagesEl.empty();
     this.sessionEntries = [...session.entries];
+    this.activeSessionId = session.threadId;
     this.activeThreadId = session.threadId;
     this.contextUsage = {
       ...this.contextUsage,
@@ -422,6 +524,19 @@ export class ChatView extends ItemView {
       }
     }
 
+    this.refreshCanvasState();
+  }
+
+  private async restoreActiveSession(): Promise<void> {
+    const session = this.activeSessionId
+      ? this.recentSessions.find((item) => item.threadId === this.activeSessionId)
+      : null;
+    if (!session) {
+      return;
+    }
+
+    await this.renderPersistedSession(session);
+
     const threadOptions = this.buildThreadOptions();
     if (threadOptions.workingDirectory) {
       this.plugin.codexService.resumeThread(session.threadId, threadOptions);
@@ -429,14 +544,18 @@ export class ChatView extends ItemView {
     }
   }
 
-  private async persistLastSession(): Promise<void> {
+  private async persistActiveSession(): Promise<void> {
     if (!this.activeThreadId || this.sessionEntries.length === 0) {
       return;
     }
 
-    await this.plugin.saveLastSession({
+    this.activeSessionId = this.activeThreadId;
+    const existingSession = this.recentSessions.find((session) => session.threadId === this.activeThreadId);
+    this.recentSessions = upsertRecentSession(this.recentSessions, {
       threadId: this.activeThreadId,
-      entries: this.sessionEntries,
+      title: resolveSessionTitle(this.sessionEntries, existingSession?.title),
+      updatedAt: Date.now(),
+      entries: [...this.sessionEntries],
       contextUsage: {
         threadCharsUsedEstimate: this.contextUsage.threadCharsUsedEstimate,
         sdkInputTokens: this.contextUsage.sdkInputTokens,
@@ -444,6 +563,37 @@ export class ChatView extends ItemView {
         sdkOutputTokens: this.contextUsage.sdkOutputTokens
       }
     });
+    this.renderHistorySessionList();
+    await this.plugin.saveSessionHistory(this.recentSessions, this.activeSessionId);
+  }
+
+  private async activatePersistedSession(threadId: string): Promise<void> {
+    if (this.isSending || threadId === this.activeSessionId) {
+      this.setHistoryPopoverOpen(false);
+      return;
+    }
+
+    const session = this.recentSessions.find((item) => item.threadId === threadId);
+    if (!session) {
+      return;
+    }
+
+    this.plugin.codexService.clearThread();
+    this.wasCancelled = false;
+    this.sessionStarted = false;
+    await this.renderPersistedSession(session);
+    const updatedSession = { ...session, updatedAt: Date.now() };
+    this.recentSessions = upsertRecentSession(this.recentSessions, updatedSession);
+    this.renderHistorySessionList();
+    await this.plugin.saveSessionHistory(this.recentSessions, threadId);
+
+    const threadOptions = this.buildThreadOptions();
+    if (threadOptions.workingDirectory) {
+      this.plugin.codexService.resumeThread(threadId, threadOptions);
+      this.sessionStarted = true;
+    }
+
+    this.setHistoryPopoverOpen(false);
   }
 
   private snapshotSummaryItems(
@@ -542,6 +692,7 @@ export class ChatView extends ItemView {
     }
 
     this.wasCancelled = false;
+    this.setHistoryPopoverOpen(false);
     this.appendMessage("user", userInput);
     const assistantTurn = this.createAssistantTurn();
     this.inputEl.value = "";
@@ -566,7 +717,8 @@ export class ChatView extends ItemView {
       for await (const event of this.plugin.codexService.sendMessage(prompt, threadOptions)) {
         if (event.type === "thread.started") {
           this.activeThreadId = event.thread_id;
-          void this.persistLastSession();
+          this.activeSessionId = event.thread_id;
+          void this.persistActiveSession();
         }
 
         const mapped = mapThreadEvent(event);
@@ -602,7 +754,7 @@ export class ChatView extends ItemView {
               contentMarkdown: assistantMarkdown,
               summaries: this.snapshotSummaryItems(summaryEvents)
             });
-            await this.persistLastSession();
+            await this.persistActiveSession();
           }
           continue;
         }
@@ -683,7 +835,7 @@ export class ChatView extends ItemView {
               contentMarkdown: assistantMarkdown,
               summaries: this.snapshotSummaryItems(summaryEvents)
             });
-            await this.persistLastSession();
+            await this.persistActiveSession();
           }
         } else {
           assistantTurn.rootEl.remove();
@@ -890,22 +1042,30 @@ export class ChatView extends ItemView {
 
     if (markdownView?.editor && file) {
       const selectionText = markdownView.editor.getSelection() || undefined;
-      return {
+      const context: ContextInput = {
         userInput,
         activeNotePath: file.path,
         activeNoteContent: markdownView.editor.getValue(),
         selectionText,
         saveTargetPlan
       };
+
+      return this.plugin.settings.includeActiveNoteContext
+        ? context
+        : omitActiveNoteContext(context);
     }
 
     if (file) {
-      return {
+      const context: ContextInput = {
         userInput,
         activeNotePath: file.path,
         activeNoteContent: await this.app.vault.cachedRead(file),
         saveTargetPlan
       };
+
+      return this.plugin.settings.includeActiveNoteContext
+        ? context
+        : omitActiveNoteContext(context);
     }
 
     return {

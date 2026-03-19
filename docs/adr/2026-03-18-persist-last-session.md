@@ -1,5 +1,7 @@
 # 2026-03-18 持久化最后一个会话
 
+> Superseded by `docs/adr/2026-03-19-session-history.md`
+
 ## 背景
 
 Obsidian 侧边栏关闭、插件重载或桌面端重启后，用户希望默认继续上次 Codex 会话，而不是自动开启新线程。

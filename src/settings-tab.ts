@@ -69,6 +69,15 @@ export class ObsidianCodexSettingTab extends PluginSettingTab {
       });
 
     new Setting(containerEl)
+      .setName("Include active note automatically")
+      .setDesc("When enabled, each turn injects the current note excerpt. Selected text is always injected separately.")
+      .addToggle((toggle) => {
+        toggle.setValue(this.plugin.settings.includeActiveNoteContext).onChange(async (value) => {
+          await this.savePatchedSettings({ includeActiveNoteContext: value });
+        });
+      });
+
+    new Setting(containerEl)
       .setName("YOLO mode")
       .setDesc(
         "Persist a high-risk override for future Codex turns: approval policy 'never' and sandbox 'danger-full-access'."

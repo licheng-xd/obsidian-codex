@@ -354,6 +354,41 @@ describe("CodexService", () => {
     expect(resumedThreadId).toBe("thread-42");
     expect(resumedOptions).toEqual({ workingDirectory: "/vault" });
   });
+
+  it("starts a fresh thread after clearing the active thread", async () => {
+    let startThreadCalls = 0;
+    let resumedRuns = 0;
+    let startedRuns = 0;
+    const resumedThread = createFakeThread([], () => {
+      resumedRuns += 1;
+    });
+    const startedThread = createFakeThread([], () => {
+      startedRuns += 1;
+    });
+    const service = new CodexService({
+      getCodexPath: () => "",
+      createClient: () => ({
+        startThread() {
+          startThreadCalls += 1;
+          return startedThread;
+        },
+        resumeThread() {
+          return resumedThread;
+        }
+      })
+    });
+
+    service.resumeThread("thread-old", { workingDirectory: "/vault" });
+    service.clearThread();
+
+    for await (const _event of service.sendMessage("hello", { workingDirectory: "/vault" })) {
+      // no-op
+    }
+
+    expect(startThreadCalls).toBe(1);
+    expect(startedRuns).toBe(1);
+    expect(resumedRuns).toBe(0);
+  });
 });
 
 const runProbeTest = process.platform === "win32" ? it.skip : it;

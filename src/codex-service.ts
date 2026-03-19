@@ -261,6 +261,11 @@ export class CodexService {
     this.currentAbortController = null;
   }
 
+  clearThread(): void {
+    this.cancelCurrentTurn();
+    this.currentThread = null;
+  }
+
   private ensureThread(threadOptions?: ThreadOptions): ThreadLike {
     const client = this.getOrCreateClient();
     if (!this.currentThread) {

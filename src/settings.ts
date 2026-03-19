@@ -9,6 +9,7 @@ export const YOLO_APPROVAL_POLICY: ApprovalPolicy = "never";
 export interface PluginSettings {
   codexPath: string;
   skipGitRepoCheck: boolean;
+  includeActiveNoteContext: boolean;
   sandboxMode: SandboxMode;
   approvalPolicy: ApprovalPolicy;
   model: string;
@@ -19,6 +20,7 @@ export interface PluginSettings {
 export const DEFAULT_SETTINGS: PluginSettings = {
   codexPath: "",
   skipGitRepoCheck: true,
+  includeActiveNoteContext: false,
   sandboxMode: "workspace-write",
   approvalPolicy: "on-request",
   model: DEFAULT_MODEL,
@@ -104,6 +106,10 @@ export function sanitizePluginSettings(
       typeof data?.skipGitRepoCheck === "boolean"
         ? data.skipGitRepoCheck
         : DEFAULT_SETTINGS.skipGitRepoCheck,
+    includeActiveNoteContext:
+      typeof data?.includeActiveNoteContext === "boolean"
+        ? data.includeActiveNoteContext
+        : DEFAULT_SETTINGS.includeActiveNoteContext,
     sandboxMode,
     approvalPolicy,
     model,

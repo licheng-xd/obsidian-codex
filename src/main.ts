@@ -11,7 +11,8 @@ import { ObsidianCodexSettingTab } from "./settings-tab";
 export default class ObsidianCodexPlugin extends Plugin {
   settings!: PluginSettings;
   codexService!: CodexService;
-  lastSession: PersistedChatSession | null = null;
+  recentSessions: PersistedChatSession[] = [];
+  activeSessionId: string | null = null;
 
   async onload(): Promise<void> {
     await this.loadSettings();
@@ -57,20 +58,25 @@ export default class ObsidianCodexPlugin extends Plugin {
     const loaded = await this.loadData();
     const persisted = readPersistedPluginData(loaded);
     this.settings = persisted.settings;
-    this.lastSession = persisted.lastSession;
+    this.recentSessions = [...persisted.recentSessions];
+    this.activeSessionId = persisted.activeSessionId;
   }
 
   async saveSettings(): Promise<void> {
     await this.savePluginData();
   }
 
-  async saveLastSession(session: PersistedChatSession): Promise<void> {
-    this.lastSession = session;
+  async saveSessionHistory(
+    recentSessions: ReadonlyArray<PersistedChatSession>,
+    activeSessionId: string | null
+  ): Promise<void> {
+    this.recentSessions = [...recentSessions];
+    this.activeSessionId = activeSessionId;
     await this.savePluginData();
   }
 
-  async clearLastSession(): Promise<void> {
-    this.lastSession = null;
+  async setActiveSession(activeSessionId: string | null): Promise<void> {
+    this.activeSessionId = activeSessionId;
     await this.savePluginData();
   }
 
@@ -92,6 +98,6 @@ export default class ObsidianCodexPlugin extends Plugin {
   }
 
   private async savePluginData(): Promise<void> {
-    await this.saveData(writePersistedPluginData(this.settings, this.lastSession));
+    await this.saveData(writePersistedPluginData(this.settings, this.recentSessions, this.activeSessionId));
   }
 }

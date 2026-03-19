@@ -14,6 +14,13 @@ export interface ContextInput {
 export const NOTE_CHAR_LIMIT = 4000;
 export const THREAD_CONTEXT_CHAR_LIMIT = 40000;
 
+export function omitActiveNoteContext(input: ContextInput): ContextInput {
+  return {
+    ...input,
+    activeNoteContent: undefined
+  };
+}
+
 function sanitizeNoteContent(note: string, selection?: string): string {
   let sanitized = note;
   if (selection) {

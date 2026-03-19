@@ -10,9 +10,9 @@
 
 - 在右侧侧边栏打开 `Obsidian Codex` 聊天面板
 - 使用本地 `@openai/codex-sdk` 启动和恢复多轮会话
-- 注入当前笔记和选中文本作为最小上下文
+- 默认注入选中文本；当前笔记全文注入可在设置中开关，默认关闭
 - 流式显示回复、系统事件、命令执行和文件变更摘要
-- 恢复最后一个会话，只有用户主动点击 `New Chat` 才开启新会话
+- 保存最近 7 个历史会话，并可在历史列表中切换和继续原 thread
 - 对“保存到本地”请求做轻量目录规划，尽量遵循 Vault 的组织方式
 - 提供模型、推理强度、YOLO 和运行状态的一体化底部托盘
 - 支持 Codex CLI 运行时检测和自定义 `codexPath`
@@ -85,6 +85,7 @@ cp styles.css "$PLUGIN_DIR/"
 
 - `Codex path`
 - `Skip git repo check`
+- `Include active note automatically`
 - `Model`
 - `Reasoning effort`
 - `YOLO mode`
@@ -111,9 +112,10 @@ cp styles.css "$PLUGIN_DIR/"
 
 ### 会话行为
 
-- 重新打开侧边栏时，默认恢复上次会话
-- 重启 Obsidian 后，也会恢复最后一个会话
-- 只有点击 `New Chat`，才会显式清空并开启新会话
+- 重新打开侧边栏时，会优先恢复当前激活会话
+- 历史按钮会展示最近 7 个会话，标题在上、时间在下
+- 点击历史会话后，会恢复消息快照并继续复用原始 Codex thread
+- `New Chat` 只结束当前激活态，不会删除历史列表
 
 ## 状态栏指标
 
@@ -156,11 +158,12 @@ cp styles.css "$PLUGIN_DIR/"
 
 1. 用户输入
 2. 当前选中文本
-3. 当前笔记正文摘录
+3. 当前笔记正文摘录（仅在 `Include active note automatically` 开启时注入）
 
 当前实现细节：
 
 - 选中文本优先于正文注入
+- 当前笔记全文默认不自动注入；这样 `New Chat` 更接近真正的空白会话
 - 正文摘录截断到 `4000` 字符
 - 如果选中文本已包含在正文里，会从正文摘录里移除一次，避免重复注入
 
@@ -194,8 +197,9 @@ cp styles.css "$PLUGIN_DIR/"
 当前插件仍然遵循以下原则：
 
 - 工作目录默认为当前 Vault 根目录
-- 上下文默认只注入当前笔记与选区
-- 不会因为插件重启而自动丢失最后一个会话
+- 上下文默认只自动注入用户输入和显式选区
+- 当前笔记全文注入需要由设置显式开启
+- 不会因为插件重启而自动丢失最近历史会话
 
 ## 故障排查
 
@@ -287,8 +291,8 @@ npm run build
 
 ## 已知限制
 
-- 当前只恢复“最后一个会话”，还没有历史会话列表
-- 当前上下文源仍然只包含当前笔记与当前选区
+- 历史会话当前不支持删除、pin、重命名和搜索
+- 当前上下文源仍然只包含用户输入、当前选区和可选的当前笔记摘录
 - 还没有“直接把回复应用回笔记”的编辑流
 - 还没有移动端支持
 - 保存目录规划目前是规则驱动的 prompt 注入，不是底层硬拦截
@@ -297,14 +301,15 @@ npm run build
 
 - 设计文档：`docs/plans/2026-03-16-obsidian-codex-design.md`
 - 初始实现计划：`docs/plans/2026-03-16-obsidian-codex-implementation-plan.md`
-- 持久化会话 ADR：`docs/adr/2026-03-18-persist-last-session.md`
+- 历史会话设计：`docs/plans/2026-03-19-session-history-design.md`
+- 历史会话 ADR：`docs/adr/2026-03-19-session-history.md`
 - 保存目录规划 ADR：`docs/adr/2026-03-18-vault-save-planner.md`
+- 文档索引：`docs/README.md`
 
 ## 路线图
 
 下一阶段更值得继续做的是：
 
-- 历史会话列表与会话切换
 - 更细粒度的上下文来源选择
 - 内联编辑 / 应用修改
 - Prompt 模板和快捷命令
