@@ -1,0 +1,52 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_REF_NAME: ${{ github.ref_name }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type check
+        run: npm run typecheck
+
+      - name: Build plugin
+        run: npm run build
+
+      - name: Validate release version
+        run: npm run release:check -- ${GITHUB_REF_NAME}
+
+      - name: Create release bundle
+        run: npm run release:bundle
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="$(node -p "require('./package.json').version")"
+          gh release create "${GITHUB_REF_NAME}" \
+            "release/main.js" \
+            "release/manifest.json" \
+            "release/styles.css" \
+            "release/obsidian-codex-${VERSION}.zip" \
+            --generate-notes \
+            --title "v${VERSION}"

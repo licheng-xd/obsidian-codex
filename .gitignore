@@ -3,6 +3,7 @@
 .worktrees/
 node_modules/
 main.js
+release/
 *.tsbuildinfo
 task_plan.md
 findings.md

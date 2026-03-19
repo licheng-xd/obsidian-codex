@@ -7,7 +7,9 @@
     "dev": "node esbuild.config.mjs",
     "build": "node esbuild.config.mjs production",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "release:check": "node scripts/check-release-version.mjs",
+    "release:bundle": "node scripts/create-release-bundle.mjs"
   },
   "dependencies": {
     "@openai/codex-sdk": "^0.114.0"
