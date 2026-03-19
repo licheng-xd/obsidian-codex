@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { MODEL_OPTIONS, type ContextUsage } from "../src/types";
 import {
+  formatContextWindowTitle,
   formatContextWindowUsage,
   formatLastTurnUsage,
   getModelContextWindow,
@@ -23,28 +24,30 @@ describe("status-bar helpers", () => {
   }
 
   it("formats the current session estimate against the model context window", () => {
-    expect(formatContextWindowUsage("gpt-5.4", createUsage())).toBe("Context 0% · 0 / 1.1M");
+    expect(formatContextWindowUsage("gpt-5.4", createUsage())).toBe("Local 0 / 4k");
     expect(
       formatContextWindowUsage(
         "gpt-5.4",
         createUsage({
           threadCharsUsedEstimate: 220_000,
+          localCharsUsed: 1200,
           sdkInputTokens: 2_400_000
         })
       )
-    ).toBe("Context 21% · ~220k / 1.1M");
+    ).toBe("Local 1.2k / 4k");
     expect(
       formatContextWindowUsage(
         "gpt-5.3-codex",
         createUsage({
           threadCharsUsedEstimate: 48_000,
+          localCharsUsed: 350,
           sdkInputTokens: 120_000
         })
       )
-    ).toBe("Context 12% · ~48k / 400k");
+    ).toBe("Local 350 / 4k");
   });
 
-  it("caps the displayed session ratio at 100%", () => {
+  it("does not pretend to know the live thread window usage", () => {
     expect(
       formatContextWindowUsage(
         "gpt-5.4",
@@ -53,19 +56,43 @@ describe("status-bar helpers", () => {
           sdkInputTokens: 2_400_000
         })
       )
-    ).toBe("Context 100% · ~1.1M / 1.1M");
+    ).toBe("Local 0 / 4k");
   });
 
-  it("falls back to the estimated session size when the model window is unknown", () => {
+  it("uses the same local-only display when the model window is unknown", () => {
     expect(
       formatContextWindowUsage(
         "custom-model",
         createUsage({
           threadCharsUsedEstimate: 12034,
+          localCharsUsed: 640,
           sdkInputTokens: 48000
         })
       )
-    ).toBe("Context ~12k");
+    ).toBe("Local 640 / 4k");
+  });
+
+  it("explains the limitations of SDK usage in the tooltip", () => {
+    expect(
+      formatContextWindowTitle(
+        "gpt-5.4",
+        createUsage({
+          threadCharsUsedEstimate: 12034,
+          localCharsUsed: 640,
+          sdkInputTokens: 48000,
+          sdkCachedInputTokens: 12000,
+          sdkOutputTokens: 800
+        })
+      )
+    ).toContain("Thread window: unavailable in current Codex SDK");
+    expect(
+      formatContextWindowTitle(
+        "gpt-5.4",
+        createUsage({
+          threadCharsUsedEstimate: 12034
+        })
+      )
+    ).toContain("Auto-compact: unavailable in current Codex SDK");
   });
 
   it("formats last turn usage", () => {

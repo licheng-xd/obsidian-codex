@@ -28,10 +28,8 @@ function formatEstimatedCount(value: number): string {
   return `~${formatCompactCount(value)}`;
 }
 
-function estimateSessionContextTokens(usage: ContextUsage): number {
-  // Codex SDK only exposes aggregate per-turn usage, not the live thread window size.
-  // Use visible session history as a conservative proxy for current context growth.
-  return Math.max(0, Math.round(usage.threadCharsUsedEstimate));
+function formatLocalContextUsage(usage: ContextUsage): string {
+  return `Local ${formatCompactCount(usage.localCharsUsed)} / ${formatCompactCount(usage.localCharsLimit)}`;
 }
 
 export function getModelContextWindow(model: string): number | null {
@@ -42,33 +40,24 @@ export function formatContextWindowUsage(
   model: string,
   usage: ContextUsage
 ): string {
-  const estimatedTokens = estimateSessionContextTokens(usage);
-
-  const contextWindow = getModelContextWindow(model);
-  if (!contextWindow || contextWindow <= 0) {
-    return `Context ${formatEstimatedCount(estimatedTokens)}`;
-  }
-
-  const displayedTokens = Math.min(estimatedTokens, contextWindow);
-  const ratio = Math.max(0, Math.min(100, Math.round((displayedTokens / contextWindow) * 100)));
-  const usedText = displayedTokens === 0 ? "0" : formatEstimatedCount(displayedTokens);
-  return `Context ${ratio}% · ${usedText} / ${formatCompactCount(contextWindow)}`;
+  void model;
+  return formatLocalContextUsage(usage);
 }
 
-function formatContextWindowTitle(
+export function formatContextWindowTitle(
   model: string,
   usage: ContextUsage
 ): string {
   const contextWindow = getModelContextWindow(model);
-  const estimatedTokens = estimateSessionContextTokens(usage);
-  const windowText = contextWindow
-    ? `${formatEstimatedCount(Math.min(estimatedTokens, contextWindow))} / ${formatCompactCount(contextWindow)}`
-    : formatEstimatedCount(estimatedTokens);
+  const historyEstimate = Math.max(0, Math.round(usage.threadCharsUsedEstimate));
 
   return [
-    `Context est.: ${windowText}`,
-    `Visible history: ${formatCompactCount(usage.threadCharsUsedEstimate)} chars`,
-    `Pending local: ${formatCompactCount(usage.localCharsUsed)} / ${formatCompactCount(usage.localCharsLimit)} chars`,
+    `Local context: ${formatCompactCount(usage.localCharsUsed)} / ${formatCompactCount(usage.localCharsLimit)} chars`,
+    `Visible history est.: ${formatEstimatedCount(historyEstimate)} chars`,
+    contextWindow
+      ? `Configured model window: ${formatCompactCount(contextWindow)} tokens`
+      : "Configured model window: unavailable",
+    "Thread window: unavailable in current Codex SDK",
     formatLastTurnUsage(
       usage.sdkInputTokens,
       usage.sdkCachedInputTokens,
@@ -76,7 +65,8 @@ function formatContextWindowTitle(
     ),
     usage.sdkInputTokens === null
       ? "Turn input note: pending"
-      : "Turn input note: aggregate across the completed turn, not live thread window"
+      : "Turn input note: aggregate across the completed turn, not live thread window",
+    "Auto-compact: unavailable in current Codex SDK"
   ].join(" · ");
 }
 

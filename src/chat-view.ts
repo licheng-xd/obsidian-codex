@@ -10,7 +10,11 @@ import {
   setIcon
 } from "obsidian";
 import type { ThreadOptions } from "@openai/codex-sdk";
-import { shouldSubmitFromKeydown } from "./chat-input";
+import {
+  insertTextAtSelection,
+  shouldInsertLineBreakFromKeydown,
+  shouldSubmitFromKeydown
+} from "./chat-input";
 import { renderMarkdownMessage } from "./assistant-markdown";
 import type {
   PersistedAssistantEntry,
@@ -35,6 +39,7 @@ import {
   summarizeAssistantSystemEvents,
   type SummarizableAssistantEvent
 } from "./event-summary";
+import { enhanceRenderedAssistantLinks } from "./assistant-link-opener";
 import type ObsidianCodexPlugin from "./main";
 import { DEFAULT_SETTINGS, patchPluginSettings, toggleYoloMode } from "./settings";
 import { StatusBar } from "./status-bar";
@@ -222,18 +227,35 @@ export class ChatView extends ItemView {
     this.registerDomEvent(this.inputEl, "focus", () => void this.updateContextSummary());
     this.registerDomEvent(this.inputEl, "input", () => this.updateComposerState());
     this.registerDomEvent(this.inputEl, "keydown", (event: KeyboardEvent) => {
-      if (
-        shouldSubmitFromKeydown({
-          key: event.key,
-          metaKey: event.metaKey,
-          ctrlKey: event.ctrlKey,
-          shiftKey: event.shiftKey,
-          altKey: event.altKey,
-          isComposing: event.isComposing
-        })
-      ) {
+      const keyInput = {
+        key: event.key,
+        metaKey: event.metaKey,
+        ctrlKey: event.ctrlKey,
+        shiftKey: event.shiftKey,
+        altKey: event.altKey,
+        isComposing: event.isComposing
+      };
+
+      if (shouldSubmitFromKeydown(keyInput)) {
         event.preventDefault();
         void this.handleSend();
+        return;
+      }
+
+      if (shouldInsertLineBreakFromKeydown(keyInput)) {
+        event.preventDefault();
+        const selectionStart = this.inputEl.selectionStart ?? this.inputEl.value.length;
+        const selectionEnd = this.inputEl.selectionEnd ?? selectionStart;
+        const nextValue = insertTextAtSelection({
+          value: this.inputEl.value,
+          selectionStart,
+          selectionEnd,
+          text: "\n"
+        });
+        this.inputEl.value = nextValue.value;
+        this.inputEl.selectionStart = nextValue.selectionStart;
+        this.inputEl.selectionEnd = nextValue.selectionEnd;
+        this.updateComposerState();
       }
     });
 
@@ -474,13 +496,15 @@ export class ChatView extends ItemView {
     turn.metaEl.classList.remove("is-live");
     turn.metaLabelEl.textContent = entry.metaLabel;
     turn.metaSignalEl.remove();
+    const responseEl = turn.contentEl.createDiv({ cls: "obsidian-codex-response markdown-rendered" });
     await renderMarkdownMessage(
-      turn.contentEl.createDiv({ cls: "obsidian-codex-response markdown-rendered" }),
+      responseEl,
       entry.contentMarkdown,
       this.getMarkdownSourcePath(),
       (markdown, scratchEl, sourcePath) =>
         MarkdownRenderer.render(this.app, markdown, scratchEl, sourcePath, this)
     );
+    this.activateRenderedAssistantLinks(responseEl, this.getMarkdownSourcePath());
     this.renderPersistedSummaryItems(turn.eventsEl, entry.summaries);
     this.refreshCanvasState();
     this.scrollMessagesToBottom();
@@ -624,8 +648,20 @@ export class ChatView extends ItemView {
       (markdown, scratchEl, sourcePath) =>
         MarkdownRenderer.render(this.app, markdown, scratchEl, sourcePath, this)
     );
+    this.activateRenderedAssistantLinks(cardEl, this.getMarkdownSourcePath());
 
     return cardEl;
+  }
+
+  private activateRenderedAssistantLinks(containerEl: HTMLElement, sourcePath: string): void {
+    enhanceRenderedAssistantLinks(containerEl, {
+      sourcePath,
+      resolveLinkpath: (linktext, linkSourcePath) =>
+        this.app.metadataCache.getFirstLinkpathDest(linktext, linkSourcePath),
+      openLinkText: async (linktext, linkSourcePath) => {
+        await this.app.workspace.openLinkText(linktext, linkSourcePath);
+      }
+    });
   }
 
   private renderSummarizedAssistantEvents(

@@ -10,4 +10,12 @@ describe("chat-view history markup", () => {
     expect(source).toContain('itemEl.setAttr("role", "button");');
     expect(source).toContain('itemEl.tabIndex = 0;');
   });
+
+  it("activates vault link opening after rendering assistant markdown", () => {
+    const source = readFileSync(resolve(__dirname, "../src/chat-view.ts"), "utf8");
+
+    expect(source).toContain("this.activateRenderedAssistantLinks(responseEl, this.getMarkdownSourcePath());");
+    expect(source).toContain("this.activateRenderedAssistantLinks(cardEl, this.getMarkdownSourcePath());");
+    expect(source).toContain("this.app.workspace.openLinkText(linktext, linkSourcePath)");
+  });
 });

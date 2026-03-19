@@ -65,6 +65,37 @@ const CONTENT_TYPE_KEYWORDS: Record<VaultContentType, ReadonlyArray<string>> = {
   "daily-note": ["daily", "journal", "journals", "log", "logs", "diary", "日报", "日志", "日记"],
   "general-note": ["note", "notes", "memo", "memos", "文档", "笔记"]
 };
+const TEMPLATE_REQUEST_KEYWORDS = ["template", "templates", "模板", "模版", "范本", "样板", "boilerplate"];
+const TEMPLATE_DIRECTORY_SEGMENTS = ["template", "templates", "模板", "模版"];
+const GENERIC_DIRECTORY_SEGMENTS = new Set([
+  "project",
+  "projects",
+  "项目",
+  "note",
+  "notes",
+  "笔记",
+  "doc",
+  "docs",
+  "document",
+  "documents",
+  "文档",
+  "report",
+  "reports",
+  "analysis",
+  "analyses",
+  "meeting",
+  "meetings",
+  "daily",
+  "research",
+  "reference",
+  "references",
+  "archive",
+  "archives",
+  "template",
+  "templates",
+  "模板",
+  "模版"
+]);
 
 function normalizeText(value: string): string {
   return value.toLowerCase().replace(/[_-]+/g, " ").replace(/\s+/g, " ").trim();
@@ -73,6 +104,10 @@ function normalizeText(value: string): string {
 function normalizeDirectory(path: string): string {
   const trimmed = path.trim().replace(/^\.?\//, "").replace(/\/+$/, "");
   return trimmed || VAULT_ROOT_DIRECTORY;
+}
+
+function buildPlannerSignalHaystack(input: VaultSavePlannerInput): string {
+  return normalizeText([input.userInput, input.draftTitle, input.draftExcerpt].filter(Boolean).join(" "));
 }
 
 function uniqueDirectories(paths: ReadonlyArray<string>): string[] {
@@ -116,9 +151,7 @@ export function requestLooksLikeLocalSave(userInput: string): boolean {
 }
 
 function classifyContentType(input: VaultSavePlannerInput): VaultContentType {
-  const haystack = normalizeText(
-    [input.userInput, input.draftTitle, input.draftExcerpt].filter(Boolean).join(" ")
-  );
+  const haystack = buildPlannerSignalHaystack(input);
 
   const rankedTypes: VaultContentType[] = [
     "meeting-note",
@@ -166,6 +199,26 @@ function extractGuidancePathCandidates(documents: ReadonlyArray<GuidanceDocument
 
 function lineMatchesContentType(line: string, contentType: VaultContentType): boolean {
   return CONTENT_TYPE_KEYWORDS[contentType].some((keyword) => line.includes(normalizeText(keyword)));
+}
+
+function requestLooksLikeTemplateSave(input: VaultSavePlannerInput): boolean {
+  const haystack = buildPlannerSignalHaystack(input);
+  return TEMPLATE_REQUEST_KEYWORDS.some((keyword) => haystack.includes(normalizeText(keyword)));
+}
+
+function getPathSegments(path: string): string[] {
+  return normalizeDirectory(path)
+    .split("/")
+    .map((segment) => normalizeText(segment))
+    .filter(Boolean);
+}
+
+function getSpecificPathSegments(path: string): string[] {
+  return getPathSegments(path).filter((segment) => segment.length >= 2 && !GENERIC_DIRECTORY_SEGMENTS.has(segment));
+}
+
+function isTemplateDirectory(path: string): boolean {
+  return getPathSegments(path).some((segment) => TEMPLATE_DIRECTORY_SEGMENTS.includes(segment));
 }
 
 function buildGuidanceCandidateScores(
@@ -218,10 +271,13 @@ function buildGuidanceCandidateScores(
 
 function scoreDirectorySnapshot(
   snapshot: DirectorySnapshot,
-  contentType: VaultContentType
+  contentType: VaultContentType,
+  input: VaultSavePlannerInput
 ): CandidateScore | null {
   const normalizedPath = normalizeDirectory(snapshot.path);
   const haystack = normalizeText([normalizedPath, ...snapshot.sampleFiles].join(" "));
+  const signalHaystack = buildPlannerSignalHaystack(input);
+  const reasonClauses: string[] = [];
   let score = 0;
 
   for (const hint of DIRECTORY_NAME_HINTS[contentType]) {
@@ -238,15 +294,27 @@ function scoreDirectorySnapshot(
     }
   }
 
+  const matchedSpecificSegment = getSpecificPathSegments(normalizedPath).find((segment) => signalHaystack.includes(segment));
+  if (matchedSpecificSegment) {
+    score += 80;
+    reasonClauses.push(`path segment ${matchedSpecificSegment} matches the current request.`);
+  }
+
+  if (isTemplateDirectory(normalizedPath) && !requestLooksLikeTemplateSave(input)) {
+    score -= 60;
+    reasonClauses.push("template directories are deprioritized for non-template save requests.");
+  }
+
   if (score === 0) {
     return null;
   }
 
+  const baseReason = `directory structure and file names suggest ${formatDirectoryForReason(normalizedPath)} is used for ${formatContentTypeForReason(contentType)} content.`;
   return {
     path: normalizedPath,
     score,
     confidence: "medium",
-    reason: `directory structure and file names suggest ${formatDirectoryForReason(normalizedPath)} is used for ${formatContentTypeForReason(contentType)} content.`
+    reason: [baseReason, ...reasonClauses].join(" ")
   };
 }
 
@@ -284,7 +352,7 @@ export function planVaultSaveTarget(input: VaultSavePlannerInput): VaultSaveTarg
 
   const guidanceCandidates = buildGuidanceCandidateScores(candidatePaths, guidanceDocuments, contentType);
   const structuralCandidates = directorySnapshot
-    .map((snapshot) => scoreDirectorySnapshot(snapshot, contentType))
+    .map((snapshot) => scoreDirectorySnapshot(snapshot, contentType, input))
     .filter((candidate): candidate is CandidateScore => candidate !== null);
   const rankedCandidates = dedupeCandidateScores([...guidanceCandidates, ...structuralCandidates]);
   const winner = rankedCandidates[0];

@@ -90,6 +90,51 @@ describe("planVaultSaveTarget", () => {
     expect(plan.contentType).toBe("meeting-note");
   });
 
+  it("does not route project files into Templates when a concrete project folder exists", () => {
+    const plan = planVaultSaveTarget({
+      userInput: "把中泰证券项目相关文件保存到本地",
+      draftTitle: "中泰证券项目需求整理",
+      directorySnapshot: [
+        {
+          path: "Templates",
+          sampleFiles: ["项目模板.md", "需求模板.md", "方案模板.md"]
+        },
+        {
+          path: "Projects/中泰证券",
+          sampleFiles: ["会议纪要.md", "开户流程.md"]
+        }
+      ]
+    });
+
+    expect(plan.preferredDirectory).toBe("Projects/中泰证券");
+    expect(plan.reason).toContain("中泰证券");
+    expect(plan.confidence).toBe("medium");
+  });
+
+  it("prefers the project directory whose path matches the current request entity", () => {
+    const plan = planVaultSaveTarget({
+      userInput: "请把这份中泰证券项目方案保存到本地",
+      draftTitle: "中泰证券项目方案",
+      directorySnapshot: [
+        {
+          path: "Projects/中泰证券",
+          sampleFiles: ["调研记录.md"]
+        },
+        {
+          path: "Projects/某教育客户",
+          sampleFiles: ["需求说明.md", "方案设计.md"]
+        },
+        {
+          path: "Templates",
+          sampleFiles: ["项目模板.md", "需求模板.md"]
+        }
+      ]
+    });
+
+    expect(plan.preferredDirectory).toBe("Projects/中泰证券");
+    expect(plan.reason).toContain("current request");
+  });
+
   it("always returns the required planner fields", () => {
     const plan = planVaultSaveTarget({
       userInput: "Save this locally",
