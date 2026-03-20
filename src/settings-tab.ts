@@ -21,8 +21,8 @@ export class ObsidianCodexSettingTab extends PluginSettingTab {
     containerEl.empty();
 
     new Setting(containerEl)
-      .setName("Codex path")
-      .setDesc("Optional absolute path to the codex CLI. Leave empty to use PATH.")
+      .setName("Path to codex")
+      .setDesc("Optional absolute path to the codex executable. Leave empty to use the shell path.")
       .addText((text) => {
         text
           .setPlaceholder("codex")
@@ -34,7 +34,7 @@ export class ObsidianCodexSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName("Model")
-      .setDesc("Default Codex model for future thread execution.")
+      .setDesc("Default model for future thread execution.")
       .addText((text) => {
         text
           .setPlaceholder(DEFAULT_SETTINGS.model)
@@ -46,7 +46,7 @@ export class ObsidianCodexSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName("Reasoning effort")
-      .setDesc("Default model reasoning effort for future Codex turns.")
+      .setDesc("Default reasoning effort for future turns.")
       .addDropdown((dropdown) => {
         for (const option of REASONING_EFFORT_OPTIONS) {
           dropdown.addOption(option.id, option.label);
@@ -59,7 +59,7 @@ export class ObsidianCodexSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName("Skip git repo check")
-      .setDesc("Allow Codex to run inside a Vault even when it is not a git repository.")
+      .setDesc("Allow codex to run inside a vault even when it is not a git repository.")
       .addToggle((toggle) => {
         toggle.setValue(this.plugin.settings.skipGitRepoCheck).onChange(async (value) => {
           await this.savePatchedSettings({ skipGitRepoCheck: value });
@@ -76,9 +76,9 @@ export class ObsidianCodexSettingTab extends PluginSettingTab {
       });
 
     new Setting(containerEl)
-      .setName("YOLO mode")
+      .setName("High-risk mode")
       .setDesc(
-        "Persist a high-risk override for future Codex turns: approval policy 'never' and sandbox 'danger-full-access'."
+        "Persist a high-risk override for future turns: approval policy 'never' and sandbox 'danger-full-access'."
       )
       .addToggle((toggle) => {
         toggle.setValue(this.plugin.settings.yoloMode).onChange(async (value) => {
@@ -90,7 +90,7 @@ export class ObsidianCodexSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName("Sandbox mode")
-      .setDesc("Default sandbox mode for future Codex thread execution.")
+      .setDesc("Default sandbox mode for future thread execution.")
       .addDropdown((dropdown) => {
         dropdown
           .addOption("read-only", "read-only")
@@ -108,7 +108,7 @@ export class ObsidianCodexSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName("Approval policy")
-      .setDesc("Default approval policy for future Codex thread execution.")
+      .setDesc("Default approval policy for future thread execution.")
       .addDropdown((dropdown) => {
         dropdown
           .addOption("never", "never")

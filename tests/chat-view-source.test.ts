@@ -45,4 +45,12 @@ describe("chat-view history markup", () => {
     expect(source).toContain("this.attachments = [];");
     expect(source).toContain("this.cleanupAttachmentFiles(draftAttachments);");
   });
+
+  it("keeps onClose synchronous while returning a resolved promise for the view lifecycle", () => {
+    const source = readFileSync(resolve(__dirname, "../src/chat-view.ts"), "utf8");
+
+    expect(source).toContain("onClose(): Promise<void> {");
+    expect(source).not.toContain("async onClose(): Promise<void>");
+    expect(source).toContain("return Promise.resolve();");
+  });
 });

@@ -172,7 +172,7 @@ export class StatusBar {
     this.yoloToggleEl = containerEl.ownerDocument.createElement("button");
     this.yoloToggleEl.type = "button";
     this.yoloToggleEl.className = "obsidian-codex-statusbar-switch";
-    this.yoloToggleEl.ariaLabel = "YOLO mode";
+    this.yoloToggleEl.ariaLabel = "High-risk mode";
     this.yoloToggleEl.role = "switch";
     this.yoloToggleEl.addEventListener("click", () => {
       void this.callbacks.onYoloChange(this.yoloToggleEl.getAttribute("aria-checked") !== "true");

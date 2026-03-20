@@ -210,12 +210,13 @@ export class ChatView extends ItemView {
     });
   }
 
-  async onClose(): Promise<void> {
+  onClose(): Promise<void> {
     this.clearScheduledContextSummaryUpdate();
     this.clearComposerAttachments();
     this.plugin.codexService.clearThread();
     this.statusBar?.destroy();
     this.statusBar = null;
+    return Promise.resolve();
   }
 
   private render(): void {
@@ -253,7 +254,7 @@ export class ChatView extends ItemView {
     this.newChatButtonEl = this.createTrayActionButton(
       stageActionsEl,
       "plus",
-      "New Chat",
+      "New chat",
       () => this.resetConversation(),
       false,
       "is-new-chat"
@@ -1193,7 +1194,7 @@ export class ChatView extends ItemView {
 
     const threadOptions = this.buildThreadOptions();
     if (!threadOptions.workingDirectory) {
-      new Notice("Could not determine the local vault path for Codex.", 8000);
+      new Notice("Could not determine the local vault path.", 8000);
       return;
     }
 

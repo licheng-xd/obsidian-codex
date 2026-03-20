@@ -64,6 +64,12 @@ describe("finalizeCodexProbeResult", () => {
   });
 });
 
+describe("probeCodexCli", () => {
+  it("rejects spawn failures with an Error instance", async () => {
+    await expect(probeCodexCli("/path/that/does/not/exist/codex")).rejects.toBeInstanceOf(Error);
+  });
+});
+
 describe("mapThreadEvent", () => {
   it("maps agent items to text chunks", () => {
     const event: ThreadEvent = {

@@ -5,7 +5,7 @@ import { CODEX_ICON } from "./codex-icon";
 import { CodexService, probeCodexCli } from "./codex-service";
 import { registerCodexIcon } from "./icons";
 import { readPersistedPluginData, writePersistedPluginData } from "./plugin-state";
-import { type PluginSettings, sanitizePluginSettings } from "./settings";
+import { type PluginSettings } from "./settings";
 import { ObsidianCodexSettingTab } from "./settings-tab";
 
 export default class ObsidianCodexPlugin extends Plugin {
@@ -28,7 +28,7 @@ export default class ObsidianCodexPlugin extends Plugin {
     });
 
     this.addCommand({
-      id: "codexian-open-sidebar",
+      id: "open-sidebar",
       name: "Open sidebar",
       callback: async () => {
         await this.activateChatView();
@@ -36,7 +36,7 @@ export default class ObsidianCodexPlugin extends Plugin {
     });
 
     this.addCommand({
-      id: "codexian-verify-runtime",
+      id: "verify-runtime",
       name: "Verify runtime",
       callback: async () => {
         try {
@@ -48,10 +48,6 @@ export default class ObsidianCodexPlugin extends Plugin {
         }
       }
     });
-  }
-
-  async onunload(): Promise<void> {
-    this.app.workspace.detachLeavesOfType(CODEX_CHAT_VIEW_TYPE);
   }
 
   async loadSettings(): Promise<void> {

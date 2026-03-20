@@ -101,7 +101,9 @@ export async function probeCodexCli(command = "codex"): Promise<string> {
       error += String(chunk);
     });
 
-    child.on("error", reject);
+    child.on("error", (error) => {
+      reject(error instanceof Error ? error : new Error(String(error)));
+    });
     child.on("close", (code) => {
       try {
         resolve(finalizeCodexProbeResult(code, output, error));
