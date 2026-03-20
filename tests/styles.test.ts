@@ -27,4 +27,14 @@ describe("styles", () => {
       /\.obsidian-codex-history-item-meta\s*\{[^}]*display:\s*block;[^}]*font-size:\s*10px;[^}]*text-align:\s*left;[^}]*width:\s*100%;/s
     );
   });
+
+  it("derives codex colors from Obsidian theme variables and theme classes", () => {
+    const stylesheet = readFileSync(resolve(__dirname, "../styles.css"), "utf8");
+
+    expect(stylesheet).toContain("--obsidian-codex-bg: var(--background-primary);");
+    expect(stylesheet).toContain("--obsidian-codex-text: var(--text-normal);");
+    expect(stylesheet).toContain("--obsidian-codex-accent: var(--interactive-accent);");
+    expect(stylesheet).toContain(".theme-dark .obsidian-codex-view");
+    expect(stylesheet).toContain(".theme-light .obsidian-codex-view");
+  });
 });

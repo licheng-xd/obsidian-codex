@@ -1,20 +1,69 @@
 .obsidian-codex-view {
-  --obsidian-codex-bg: #242523;
-  --obsidian-codex-surface: rgba(18, 22, 19, 0.78);
-  --obsidian-codex-surface-soft: rgba(20, 24, 21, 0.56);
-  --obsidian-codex-border: rgba(143, 228, 175, 0.1);
-  --obsidian-codex-border-strong: rgba(143, 228, 175, 0.18);
-  --obsidian-codex-text: #eceee8;
-  --obsidian-codex-muted: rgba(236, 238, 232, 0.72);
-  --obsidian-codex-soft: rgba(236, 238, 232, 0.42);
-  --obsidian-codex-accent: #82dda3;
-  --obsidian-codex-accent-strong: #9bf0bb;
-  --obsidian-codex-accent-soft: rgba(130, 221, 163, 0.12);
-  --obsidian-codex-danger: #dd8176;
+  --obsidian-codex-danger: var(--text-error, #dd8176);
   --obsidian-codex-body-font-size: 14px;
+  --obsidian-codex-bg: var(--background-primary);
+  --obsidian-codex-surface: var(--background-secondary);
+  --obsidian-codex-surface-soft: var(--background-secondary-alt, var(--background-secondary));
+  --obsidian-codex-border: var(--background-modifier-border);
+  --obsidian-codex-border-strong: var(--background-modifier-border-hover, var(--background-modifier-border));
+  --obsidian-codex-text: var(--text-normal);
+  --obsidian-codex-muted: var(--text-muted);
+  --obsidian-codex-soft: var(--text-faint);
+  --obsidian-codex-accent: var(--interactive-accent);
+  --obsidian-codex-accent-strong: var(--interactive-accent-hover, var(--interactive-accent));
+  --obsidian-codex-accent-contrast: var(--text-on-accent, var(--background-primary));
+  --obsidian-codex-accent-soft: rgba(46, 125, 80, 0.1);
+  --obsidian-codex-highlight-soft: rgba(46, 125, 80, 0.08);
+  --obsidian-codex-highlight: rgba(46, 125, 80, 0.08);
+  --obsidian-codex-highlight-strong: rgba(46, 125, 80, 0.14);
+  --obsidian-codex-accent-outline: rgba(46, 125, 80, 0.22);
+  --obsidian-codex-overlay: transparent;
+  --obsidian-codex-divider: var(--background-modifier-border);
+  --obsidian-codex-divider-strong: var(--background-modifier-border-hover, var(--background-modifier-border));
+  --obsidian-codex-empty-title-color: var(--text-muted);
+  --obsidian-codex-user-bg: var(--background-secondary);
+  --obsidian-codex-user-border: var(--background-modifier-border);
+  --obsidian-codex-elevated-shadow: 0 12px 24px rgba(15, 23, 42, 0.08);
+  --obsidian-codex-card-shadow: 0 8px 16px rgba(15, 23, 42, 0.08);
+  --obsidian-codex-code-bg: var(--background-modifier-form-field, var(--background-secondary));
+  --obsidian-codex-code-block-bg: var(--background-primary-alt, var(--background-secondary));
+  --obsidian-codex-output-bg: var(--background-primary-alt, var(--background-secondary));
+  --obsidian-codex-tray-bg: linear-gradient(180deg, var(--background-secondary), var(--background-primary));
+  --obsidian-codex-tray-border: var(--background-modifier-border);
+  --obsidian-codex-tray-shadow:
+    0 12px 28px rgba(15, 23, 42, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.32);
+  --obsidian-codex-popover-bg: var(--background-primary);
+  --obsidian-codex-popover-border: var(--background-modifier-border);
+  --obsidian-codex-popover-shadow:
+    0 16px 32px rgba(15, 23, 42, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.42);
+  --obsidian-codex-history-item-bg: var(--background-primary);
+  --obsidian-codex-history-item-border: var(--background-modifier-border);
+  --obsidian-codex-selected-inset: inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  --obsidian-codex-focus-ring:
+    0 0 0 1px rgba(46, 125, 80, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  --obsidian-codex-system-label: rgba(15, 23, 42, 0.68);
+  --obsidian-codex-system-preview: rgba(15, 23, 42, 0.46);
+  --obsidian-codex-system-detail: rgba(15, 23, 42, 0.54);
+  --obsidian-codex-system-arrow: rgba(15, 23, 42, 0.34);
+  --obsidian-codex-command-spinner: rgba(46, 125, 80, 0.2);
+  --obsidian-codex-card-code-border: var(--background-modifier-border);
+  --obsidian-codex-card-output-border: var(--background-modifier-border);
+  --obsidian-codex-danger-border: rgba(221, 129, 118, 0.24);
+  --obsidian-codex-cancel-bg: rgba(15, 23, 42, 0.08);
+  --obsidian-codex-cancel-color: rgba(15, 23, 42, 0.62);
+  --obsidian-codex-cancel-disabled-color: rgba(15, 23, 42, 0.38);
+  --obsidian-codex-placeholder: rgba(15, 23, 42, 0.46);
+  --obsidian-codex-statusbar-caret: rgba(46, 125, 80, 0.72);
+  --obsidian-codex-vault-meta: rgba(15, 23, 42, 0.4);
+  --obsidian-codex-switch-bg: rgba(15, 23, 42, 0.08);
+  --obsidian-codex-switch-border: rgba(15, 23, 42, 0.12);
+  --obsidian-codex-switch-knob: rgba(255, 255, 255, 0.96);
   background:
-    radial-gradient(circle at top center, rgba(130, 221, 163, 0.05), transparent 32%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.015), transparent 22%),
+    radial-gradient(circle at top center, var(--obsidian-codex-highlight-soft), transparent 32%),
+    linear-gradient(180deg, var(--obsidian-codex-overlay), transparent 22%),
     var(--obsidian-codex-bg);
   color: var(--obsidian-codex-text);
   display: flex;
@@ -22,6 +71,65 @@
   gap: 14px;
   height: 100%;
   padding: 16px 14px 12px;
+}
+
+.theme-dark .obsidian-codex-view {
+  --obsidian-codex-accent-soft: rgba(130, 221, 163, 0.12);
+  --obsidian-codex-highlight-soft: rgba(130, 221, 163, 0.05);
+  --obsidian-codex-highlight: rgba(130, 221, 163, 0.08);
+  --obsidian-codex-highlight-strong: rgba(130, 221, 163, 0.12);
+  --obsidian-codex-accent-outline: rgba(130, 221, 163, 0.22);
+  --obsidian-codex-overlay: rgba(255, 255, 255, 0.015);
+  --obsidian-codex-empty-title-color: rgba(236, 238, 232, 0.78);
+  --obsidian-codex-user-bg: rgba(12, 16, 13, 0.84);
+  --obsidian-codex-user-border: rgba(255, 255, 255, 0.04);
+  --obsidian-codex-elevated-shadow: 0 12px 24px rgba(0, 0, 0, 0.14);
+  --obsidian-codex-card-shadow: 0 8px 16px rgba(0, 0, 0, 0.08);
+  --obsidian-codex-code-bg: rgba(255, 255, 255, 0.04);
+  --obsidian-codex-code-block-bg: rgba(0, 0, 0, 0.2);
+  --obsidian-codex-output-bg: rgba(0, 0, 0, 0.24);
+  --obsidian-codex-tray-bg: linear-gradient(180deg, rgba(18, 22, 19, 0.93), rgba(16, 19, 17, 0.97));
+  --obsidian-codex-tray-border: rgba(130, 221, 163, 0.07);
+  --obsidian-codex-tray-shadow:
+    0 16px 32px rgba(0, 0, 0, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.02);
+  --obsidian-codex-popover-bg: rgba(12, 16, 13, 0.94);
+  --obsidian-codex-popover-border: rgba(130, 221, 163, 0.14);
+  --obsidian-codex-popover-shadow:
+    0 18px 36px rgba(0, 0, 0, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  --obsidian-codex-history-item-bg: rgba(255, 255, 255, 0.035);
+  --obsidian-codex-history-item-border: rgba(255, 255, 255, 0.04);
+  --obsidian-codex-selected-inset: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  --obsidian-codex-focus-ring:
+    0 0 0 1px rgba(130, 221, 163, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  --obsidian-codex-system-label: rgba(236, 238, 232, 0.76);
+  --obsidian-codex-system-preview: rgba(236, 238, 232, 0.42);
+  --obsidian-codex-system-detail: rgba(236, 238, 232, 0.56);
+  --obsidian-codex-system-arrow: rgba(236, 238, 232, 0.34);
+  --obsidian-codex-command-spinner: rgba(130, 221, 163, 0.2);
+  --obsidian-codex-card-code-border: rgba(255, 255, 255, 0.04);
+  --obsidian-codex-card-output-border: rgba(255, 255, 255, 0.03);
+  --obsidian-codex-danger-border: rgba(221, 129, 118, 0.22);
+  --obsidian-codex-cancel-bg: rgba(236, 238, 232, 0.12);
+  --obsidian-codex-cancel-color: rgba(236, 238, 232, 0.68);
+  --obsidian-codex-cancel-disabled-color: rgba(236, 238, 232, 0.48);
+  --obsidian-codex-placeholder: rgba(236, 238, 232, 0.74);
+  --obsidian-codex-statusbar-caret: rgba(130, 221, 163, 0.72);
+  --obsidian-codex-vault-meta: rgba(236, 238, 232, 0.34);
+  --obsidian-codex-switch-bg: rgba(255, 255, 255, 0.08);
+  --obsidian-codex-switch-border: rgba(255, 255, 255, 0.05);
+  --obsidian-codex-switch-knob: rgba(236, 238, 232, 0.82);
+}
+
+.theme-light .obsidian-codex-view {
+  --obsidian-codex-accent-soft: rgba(46, 125, 80, 0.1);
+  --obsidian-codex-highlight-soft: rgba(46, 125, 80, 0.08);
+  --obsidian-codex-highlight: rgba(46, 125, 80, 0.08);
+  --obsidian-codex-highlight-strong: rgba(46, 125, 80, 0.14);
+  --obsidian-codex-accent-outline: rgba(46, 125, 80, 0.22);
+  --obsidian-codex-overlay: rgba(255, 255, 255, 0.58);
 }
 
 .obsidian-codex-header {
@@ -79,7 +187,7 @@
 }
 
 .obsidian-codex-empty-title {
-  color: rgba(236, 238, 232, 0.78);
+  color: var(--obsidian-codex-empty-title-color);
   font-family: Georgia, "Times New Roman", serif;
   font-size: clamp(36px, 6vw, 52px);
   font-weight: 600;
@@ -118,10 +226,10 @@
 
 .obsidian-codex-message.is-user {
   align-self: flex-end;
-  background: rgba(12, 16, 13, 0.84);
-  border: 1px solid rgba(255, 255, 255, 0.04);
+  background: var(--obsidian-codex-user-bg);
+  border: 1px solid var(--obsidian-codex-user-border);
   border-radius: 16px;
-  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.14);
+  box-shadow: var(--obsidian-codex-elevated-shadow);
   color: var(--obsidian-codex-text);
   font-size: 12px;
   line-height: 1.5;
@@ -253,7 +361,7 @@
 }
 
 .obsidian-codex-response :where(pre) {
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--obsidian-codex-code-block-bg);
   border-radius: 10px;
   overflow-x: hidden;
   padding: 8px 10px;
@@ -267,7 +375,7 @@
 }
 
 .obsidian-codex-response :where(code) {
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--obsidian-codex-code-bg);
   border-radius: 6px;
   font-family: var(--font-monospace);
   font-size: 0.94em;
@@ -281,7 +389,7 @@
 }
 
 .obsidian-codex-response :where(th, td) {
-  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  border-bottom: 1px solid var(--obsidian-codex-divider);
   padding: 4px 6px;
   text-align: left;
   vertical-align: top;
@@ -291,14 +399,14 @@
   background: var(--obsidian-codex-surface-soft);
   border: 1px solid var(--obsidian-codex-border);
   border-radius: 12px;
-  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.08);
+  box-shadow: var(--obsidian-codex-card-shadow);
   padding: 8px 10px;
   white-space: pre-wrap;
   word-break: break-word;
 }
 
 .obsidian-codex-tool-block.is-error {
-  border-color: rgba(221, 129, 118, 0.22);
+  border-color: var(--obsidian-codex-danger-border);
 }
 
 .obsidian-codex-card-summary {
@@ -316,8 +424,8 @@
 }
 
 .obsidian-codex-card-summary::before {
-  border-bottom: 1px solid rgba(130, 221, 163, 0.7);
-  border-right: 1px solid rgba(130, 221, 163, 0.7);
+  border-bottom: 1px solid var(--obsidian-codex-accent);
+  border-right: 1px solid var(--obsidian-codex-accent);
   content: "";
   display: inline-block;
   height: 6px;
@@ -337,7 +445,7 @@
 }
 
 .obsidian-codex-card-content {
-  border-top: 1px solid rgba(255, 255, 255, 0.04);
+  border-top: 1px solid var(--obsidian-codex-divider);
   padding: 0 10px 8px;
 }
 
@@ -361,8 +469,8 @@
 }
 
 .obsidian-codex-system-event > .obsidian-codex-card-summary::after {
-  border-bottom: 1px solid rgba(236, 238, 232, 0.34);
-  border-right: 1px solid rgba(236, 238, 232, 0.34);
+  border-bottom: 1px solid var(--obsidian-codex-system-arrow);
+  border-right: 1px solid var(--obsidian-codex-system-arrow);
   content: "";
   display: inline-block;
   flex: 0 0 auto;
@@ -386,14 +494,14 @@
 }
 
 .obsidian-codex-system-event-label {
-  color: rgba(236, 238, 232, 0.76);
+  color: var(--obsidian-codex-system-label);
   font-size: 10px;
   line-height: 1.45;
   white-space: nowrap;
 }
 
 .obsidian-codex-system-event-preview {
-  color: rgba(236, 238, 232, 0.42);
+  color: var(--obsidian-codex-system-preview);
   font-family: var(--font-monospace);
   font-size: 10px;
   line-height: 1.45;
@@ -404,14 +512,14 @@
 }
 
 .obsidian-codex-system-event > .obsidian-codex-card-content {
-  border-left: 1px solid rgba(255, 255, 255, 0.05);
+  border-left: 1px solid var(--obsidian-codex-divider-strong);
   border-top: 0;
   margin: 4px 0 0 6px;
   padding: 0 0 0 12px;
 }
 
 .obsidian-codex-system-event-detail {
-  color: rgba(236, 238, 232, 0.56);
+  color: var(--obsidian-codex-system-detail);
   font-size: 10px;
   line-height: 1.5;
   overflow-wrap: anywhere;
@@ -420,7 +528,7 @@
 }
 
 .obsidian-codex-system-event-detail.is-reasoning {
-  color: rgba(130, 221, 163, 0.72);
+  color: var(--obsidian-codex-accent-strong);
   font-family: var(--font-monospace);
 }
 
@@ -472,7 +580,7 @@
 
 .obsidian-codex-command-status.is-in_progress::before {
   animation: obsidian-codex-spin 0.8s linear infinite;
-  border: 2px solid rgba(130, 221, 163, 0.2);
+  border: 2px solid var(--obsidian-codex-command-spinner);
   border-radius: 999px;
   border-top-color: var(--obsidian-codex-accent);
   content: "";
@@ -494,10 +602,10 @@
 }
 
 .obsidian-codex-card-code {
-  background: rgba(0, 0, 0, 0.2);
-  border: 1px solid rgba(255, 255, 255, 0.04);
+  background: var(--obsidian-codex-code-block-bg);
+  border: 1px solid var(--obsidian-codex-card-code-border);
   border-radius: 10px;
-  color: rgba(236, 238, 232, 0.9);
+  color: var(--obsidian-codex-text);
   font-family: var(--font-monospace);
   font-size: 10px;
   margin-top: 6px;
@@ -508,8 +616,8 @@
 }
 
 .obsidian-codex-card-output {
-  background: rgba(0, 0, 0, 0.24);
-  border: 1px solid rgba(255, 255, 255, 0.03);
+  background: var(--obsidian-codex-output-bg);
+  border: 1px solid var(--obsidian-codex-card-output-border);
   border-radius: 10px;
   color: var(--obsidian-codex-muted);
   font-family: var(--font-monospace);
@@ -556,12 +664,10 @@
 }
 
 .obsidian-codex-tray {
-  background: linear-gradient(180deg, rgba(18, 22, 19, 0.93), rgba(16, 19, 17, 0.97));
-  border: 1px solid rgba(130, 221, 163, 0.07);
+  background: var(--obsidian-codex-tray-bg);
+  border: 1px solid var(--obsidian-codex-tray-border);
   border-radius: 18px;
-  box-shadow:
-    0 16px 32px rgba(0, 0, 0, 0.18),
-    inset 0 1px 0 rgba(255, 255, 255, 0.02);
+  box-shadow: var(--obsidian-codex-tray-shadow);
   display: flex;
   flex: 0 0 auto;
   flex-direction: column;
@@ -584,14 +690,12 @@
 }
 
 .obsidian-codex-history-popover {
-  background: rgba(12, 16, 13, 0.94);
+  background: var(--obsidian-codex-popover-bg);
   backdrop-filter: blur(18px);
-  border: 1px solid rgba(130, 221, 163, 0.14);
+  border: 1px solid var(--obsidian-codex-popover-border);
   border-radius: 16px;
   bottom: calc(100% + 8px);
-  box-shadow:
-    0 18px 36px rgba(0, 0, 0, 0.28),
-    inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  box-shadow: var(--obsidian-codex-popover-shadow);
   display: none;
   min-width: 232px;
   padding: 8px;
@@ -621,8 +725,8 @@
 
 .obsidian-codex-history-item {
   align-items: flex-start;
-  background: rgba(255, 255, 255, 0.035);
-  border: 1px solid rgba(255, 255, 255, 0.04);
+  background: var(--obsidian-codex-history-item-bg);
+  border: 1px solid var(--obsidian-codex-history-item-border);
   border-radius: 14px;
   box-sizing: border-box;
   color: var(--obsidian-codex-text);
@@ -643,22 +747,20 @@
 }
 
 .obsidian-codex-history-item:hover {
-  background: rgba(130, 221, 163, 0.08);
-  border-color: rgba(130, 221, 163, 0.16);
+  background: var(--obsidian-codex-highlight);
+  border-color: var(--obsidian-codex-accent-soft);
   transform: translateY(-1px);
 }
 
 .obsidian-codex-history-item.is-active {
-  background: rgba(130, 221, 163, 0.12);
-  border-color: rgba(130, 221, 163, 0.24);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  background: var(--obsidian-codex-highlight-strong);
+  border-color: var(--obsidian-codex-accent-outline);
+  box-shadow: var(--obsidian-codex-selected-inset);
 }
 
 .obsidian-codex-history-item:focus-visible {
-  border-color: rgba(130, 221, 163, 0.32);
-  box-shadow:
-    0 0 0 1px rgba(130, 221, 163, 0.18),
-    inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  border-color: var(--obsidian-codex-accent-outline);
+  box-shadow: var(--obsidian-codex-focus-ring);
   outline: none;
 }
 
@@ -704,7 +806,7 @@
 }
 
 .obsidian-codex-tray-action:hover:not(:disabled) {
-  background: rgba(130, 221, 163, 0.06);
+  background: var(--obsidian-codex-highlight-soft);
   color: var(--obsidian-codex-accent);
 }
 
@@ -713,7 +815,7 @@
 }
 
 .obsidian-codex-tray-action.is-history.is-active {
-  background: rgba(130, 221, 163, 0.08);
+  background: var(--obsidian-codex-highlight);
   color: var(--obsidian-codex-accent);
 }
 
@@ -723,9 +825,9 @@
 }
 
 .obsidian-codex-tray-action.is-cancel {
-  background: rgba(236, 238, 232, 0.12);
+  background: var(--obsidian-codex-cancel-bg);
   border-radius: 2px;
-  color: rgba(236, 238, 232, 0.68);
+  color: var(--obsidian-codex-cancel-color);
 }
 
 .obsidian-codex-tray-action.is-cancel svg {
@@ -733,19 +835,19 @@
 }
 
 .obsidian-codex-tray-action.is-cancel:disabled {
-  background: rgba(236, 238, 232, 0.12);
-  color: rgba(236, 238, 232, 0.48);
+  background: var(--obsidian-codex-cancel-bg);
+  color: var(--obsidian-codex-cancel-disabled-color);
   opacity: 1;
 }
 
 .obsidian-codex-tray-action.is-cancel:not(:disabled) {
   background: var(--obsidian-codex-accent);
-  color: var(--obsidian-codex-accent-strong);
+  color: var(--obsidian-codex-accent-contrast);
 }
 
 .obsidian-codex-tray-action.is-cancel:hover:not(:disabled) {
   background: var(--obsidian-codex-accent);
-  color: var(--obsidian-codex-accent-strong);
+  color: var(--obsidian-codex-accent-contrast);
 }
 
 .obsidian-codex-input-shell {
@@ -800,11 +902,11 @@
 }
 
 .obsidian-codex-input::placeholder {
-  color: rgba(236, 238, 232, 0.74);
+  color: var(--obsidian-codex-placeholder);
 }
 
 .obsidian-codex-tray-footer {
-  border-top: 1px solid rgba(255, 255, 255, 0.04);
+  border-top: 1px solid var(--obsidian-codex-divider);
   padding-top: 6px;
 }
 
@@ -851,7 +953,7 @@
 }
 
 .obsidian-codex-statusbar-trigger::after {
-  color: rgba(130, 221, 163, 0.72);
+  color: var(--obsidian-codex-statusbar-caret);
   content: "▾";
   font-size: 7px;
   margin-left: 3px;
@@ -905,12 +1007,12 @@
 }
 
 .obsidian-codex-statusbar-menu-item:hover {
-  border-left-color: rgba(130, 221, 163, 0.5);
+  border-left-color: var(--obsidian-codex-accent);
   transform: translateX(1px);
 }
 
 .obsidian-codex-statusbar-menu-item.is-selected {
-  border-left-color: rgba(130, 221, 163, 0.28);
+  border-left-color: var(--obsidian-codex-accent-soft);
   font-weight: 600;
 }
 
@@ -924,7 +1026,7 @@
 }
 
 .obsidian-codex-statusbar-meta.is-vault {
-  color: rgba(236, 238, 232, 0.34);
+  color: var(--obsidian-codex-vault-meta);
 }
 
 .obsidian-codex-statusbar-yolo {
@@ -941,8 +1043,8 @@
 }
 
 .obsidian-codex-statusbar-switch {
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  background: var(--obsidian-codex-switch-bg);
+  border: 1px solid var(--obsidian-codex-switch-border);
   border-radius: 999px;
   cursor: pointer;
   height: 20px;
@@ -955,7 +1057,7 @@
 }
 
 .obsidian-codex-statusbar-switch::before {
-  background: rgba(236, 238, 232, 0.82);
+  background: var(--obsidian-codex-switch-knob);
   border-radius: 999px;
   content: "";
   height: 12px;
@@ -969,8 +1071,8 @@
 }
 
 .obsidian-codex-statusbar-switch[aria-checked="true"] {
-  background: rgba(130, 221, 163, 0.2);
-  border-color: rgba(130, 221, 163, 0.22);
+  background: var(--obsidian-codex-highlight-strong);
+  border-color: var(--obsidian-codex-accent-outline);
 }
 
 .obsidian-codex-statusbar-switch[aria-checked="true"]::before {
