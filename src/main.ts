@@ -23,21 +23,21 @@ export default class ObsidianCodexPlugin extends Plugin {
 
     this.addSettingTab(new ObsidianCodexSettingTab(this.app, this));
     this.registerView(CODEX_CHAT_VIEW_TYPE, (leaf) => new ChatView(leaf, this));
-    this.addRibbonIcon(CODEX_ICON, "Open Obsidian Codex", () => {
+    this.addRibbonIcon(CODEX_ICON, "Open Codexian", () => {
       void this.activateChatView();
     });
 
     this.addCommand({
-      id: "obsidian-codex-open-placeholder",
-      name: "Open Obsidian Codex",
+      id: "codexian-open-sidebar",
+      name: "Open sidebar",
       callback: async () => {
         await this.activateChatView();
       }
     });
 
     this.addCommand({
-      id: "obsidian-codex-verify-runtime",
-      name: "Verify Codex Runtime",
+      id: "codexian-verify-runtime",
+      name: "Verify runtime",
       callback: async () => {
         try {
           const version = await probeCodexCli(this.settings.codexPath);

@@ -20,7 +20,7 @@ export class ObsidianCodexSettingTab extends PluginSettingTab {
     const { containerEl } = this;
     containerEl.empty();
 
-    containerEl.createEl("h2", { text: "Obsidian Codex Settings" });
+    containerEl.createEl("h2", { text: "Codexian settings" });
 
     new Setting(containerEl)
       .setName("Codex path")

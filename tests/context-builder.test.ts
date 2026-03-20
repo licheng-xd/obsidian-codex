@@ -179,7 +179,7 @@ describe("buildContextPayload", () => {
         {
           kind: "pasted-image",
           id: "image:cache/paste-1.png",
-          path: ".obsidian/plugins/obsidian-codex/.cache/pasted-images/paste-1.png",
+          path: ".obsidian/plugins/codexian/.cache/pasted-images/paste-1.png",
           mimeType: "image/png",
           sizeBytes: 1024,
           width: 640,
@@ -190,7 +190,7 @@ describe("buildContextPayload", () => {
 
     expect(payload).toContain("Attached images:");
     expect(payload).toContain("If attached images are relevant, inspect them directly from the provided local paths.");
-    expect(payload).toContain("path: .obsidian/plugins/obsidian-codex/.cache/pasted-images/paste-1.png");
+    expect(payload).toContain("path: .obsidian/plugins/codexian/.cache/pasted-images/paste-1.png");
     expect(payload).toContain("mime: image/png");
     expect(payload).toContain("dimensions: 640x480");
   });
@@ -227,7 +227,7 @@ describe("buildContextPayload", () => {
         {
           kind: "pasted-image",
           id: "image:cache/paste-1.png",
-          path: ".obsidian/plugins/obsidian-codex/.cache/pasted-images/paste-1.png",
+          path: ".obsidian/plugins/codexian/.cache/pasted-images/paste-1.png",
           mimeType: "image/png",
           sizeBytes: 999999
         } satisfies ComposerAttachment

@@ -17,7 +17,7 @@
 
 1. 写源文件级测试，先锁定以下期望：
    - `package.json` 暴露发布相关脚本入口
-   - `.github/workflows/release.yml` 存在并监听 tag
+   - `.github/workflows/release.yml` 存在并监听裸版本 tag
    - `README.md` 主安装路径指向 GitHub Release
 2. 运行 `npm test -- tests/release-source.test.ts`，确认先失败。
 
@@ -38,7 +38,7 @@
 - Create: `.github/workflows/release.yml`
 - Test: `tests/release-source.test.ts`
 
-1. 让工作流在 `v*` tag push 时执行：
+1. 让工作流在 `*.*.*` tag push 时执行：
    - `npm ci`
    - `npm run typecheck`
    - `npm run build`

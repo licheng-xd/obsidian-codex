@@ -17,7 +17,7 @@ const fileAttachment: ComposerAttachment = {
 const imageAttachment: ComposerAttachment = {
   kind: "pasted-image",
   id: "image:cache/paste-1.png",
-  path: ".obsidian/plugins/obsidian-codex/.cache/pasted-images/paste-1.png",
+  path: ".obsidian/plugins/codexian/.cache/pasted-images/paste-1.png",
   mimeType: "image/png",
   sizeBytes: 1024,
   width: 640,

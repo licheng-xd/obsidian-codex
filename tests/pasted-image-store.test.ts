@@ -27,7 +27,7 @@ afterEach(() => {
 });
 
 function createTempRoot(): string {
-  const directory = mkdtempSync(join(tmpdir(), "obsidian-codex-paste-"));
+  const directory = mkdtempSync(join(tmpdir(), "codexian-paste-"));
   tempDirectories.push(directory);
   return directory;
 }
@@ -35,13 +35,13 @@ function createTempRoot(): string {
 describe("pasted-image-store", () => {
   it("uses the plugin cache directory inside the vault", () => {
     expect(getPastedImageCacheDirectory("/vault")).toBe(
-      "/vault/.obsidian/plugins/obsidian-codex/.cache/pasted-images"
+      "/vault/.obsidian/plugins/codexian/.cache/pasted-images"
     );
   });
 
   it("creates a deterministic file path for a pasted image", () => {
     expect(createPastedImagePath("/vault", "image/png", "2026-03-20T05:00:00.000Z")).toBe(
-      "/vault/.obsidian/plugins/obsidian-codex/.cache/pasted-images/paste-2026-03-20T05-00-00-000Z.png"
+      "/vault/.obsidian/plugins/codexian/.cache/pasted-images/paste-2026-03-20T05-00-00-000Z.png"
     );
   });
 
@@ -68,7 +68,7 @@ describe("pasted-image-store", () => {
     const imageBuffer = Buffer.from([1, 2, 3, 4]);
     const writtenPath = writePastedImage(root, imageBuffer, "image/png", "2026-03-20T05:00:00.000Z");
 
-    deletePastedImage(root, ".obsidian/plugins/obsidian-codex/.cache/pasted-images/paste-2026-03-20T05-00-00-000Z.png");
+    deletePastedImage(root, ".obsidian/plugins/codexian/.cache/pasted-images/paste-2026-03-20T05-00-00-000Z.png");
 
     expect(() => readFileSync(writtenPath)).toThrow();
   });

@@ -32,11 +32,11 @@
 
 ### 1. 发布入口
 
-使用 Git tag 作为唯一发布入口，格式约定为 `vX.Y.Z`。
+使用 Git tag 作为唯一发布入口，格式约定为 `X.Y.Z`。
 
 发布动作由 GitHub Actions 自动执行：
 
-1. 监听 `v*` tag push
+1. 监听 `*.*.*` tag push
 2. 安装依赖
 3. 运行类型检查和构建
 4. 校验版本号一致性
@@ -50,7 +50,7 @@
 1. `main.js`
 2. `manifest.json`
 3. `styles.css`
-4. `obsidian-codex-X.Y.Z.zip`
+4. `codexian-X.Y.Z.zip`
 
 其中 `zip` 仅包含安装所需的 3 个文件，不包含源码、测试或文档。
 
@@ -61,7 +61,7 @@
 1. `package.json#version`
 2. `manifest.json#version`
 3. `versions.json` 中存在对应版本键
-4. Git tag 去掉前缀 `v` 后与上述版本一致
+4. Git tag 与上述版本完全一致，且不带 `v` 前缀
 
 若任一不一致，工作流直接失败，不创建 Release。
 

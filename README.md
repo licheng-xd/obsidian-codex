@@ -1,6 +1,6 @@
-# Obsidian Codex
+# Codexian
 
-`obsidian-codex` 是一个桌面端 Obsidian 社区插件，把 OpenAI Codex 工作流放进 Vault 侧边栏。
+`Codexian` 是一个桌面端 Obsidian 社区插件，把 OpenAI Codex 工作流放进 Vault 侧边栏。
 
 适合已经在本机使用 Codex CLI，希望在 Obsidian 里直接进行问答、分析、写作和本地协作的用户。
 
@@ -17,7 +17,7 @@
 - 单轮最多附加 5 个文件引用
 - 图片只支持粘贴，不支持拖拽、外链和外部目录
 - 单轮最多附加 3 张图片
-- 粘贴图片会先写入 `.obsidian/plugins/obsidian-codex/.cache/pasted-images/`
+- 粘贴图片会先写入 `.obsidian/plugins/codexian/.cache/pasted-images/`
 
 ## 运行要求
 
@@ -29,20 +29,29 @@
 当前还没有上架 Obsidian 社区商店，推荐直接从 GitHub Release 安装。
 仅安装 Codex app 不足以满足当前插件前置条件；本插件直接调用的是本机 Codex CLI。
 
+## 披露
+
+- 插件依赖本机已安装并已登录的 OpenAI Codex CLI
+- 插件本身不包含遥测、广告或付费墙
+- 联网行为主要由本机 Codex CLI 执行，用于访问 OpenAI 及其调用链路需要的网络资源
+- 插件会读取你显式提供给当前会话的本地上下文，包括当前笔记、当前选区、`@` 引用文件和粘贴图片附件
+- 粘贴图片会写入 Vault 内的插件缓存目录 `.obsidian/plugins/codexian/.cache/pasted-images/`
+- `YOLO mode` 为显式高风险开关，开启后会把审批策略设为 `never`，并允许更高权限的本地执行
+
 ## 安装
 
 ### 方式一：GitHub Release 安装（推荐）
 
-1. 打开 [GitHub Release](https://github.com/licheng-xd/obsidian-codex/releases) 页面，下载最新的 `obsidian-codex-x.y.z.zip`
-2. 解压到你的 Vault 插件目录：`.obsidian/plugins/obsidian-codex/`
+1. 打开 [GitHub Release](https://github.com/licheng-xd/obsidian-codex/releases) 页面，下载最新的 `codexian-x.y.z.zip`
+2. 解压到你的 Vault 插件目录：`.obsidian/plugins/codexian/`
 3. 确认目录中有以下 3 个文件：
    - `main.js`
    - `manifest.json`
    - `styles.css`
 4. 打开 Obsidian，进入 `设置 -> 第三方插件`
-5. 关闭安全模式并启用 `Obsidian Codex`
+5. 关闭安全模式并启用 `Codexian`
 
-如果解压后多了一层目录，直接把这 3 个文件移动到 `.obsidian/plugins/obsidian-codex/` 即可。
+如果解压后多了一层目录，直接把这 3 个文件移动到 `.obsidian/plugins/codexian/` 即可。
 
 ### 方式二：分别下载 3 个文件
 
@@ -55,7 +64,7 @@
 然后把它们放到：
 
 ```text
-<你的 Vault>/.obsidian/plugins/obsidian-codex/
+<你的 Vault>/.obsidian/plugins/codexian/
 ```
 
 ## 首次配置
@@ -67,7 +76,7 @@
    command -v codex
    ```
 
-2. 打开 Obsidian，执行命令 `Verify Codex Runtime`
+2. 打开 Obsidian，执行命令 `Verify runtime`
 3. 如果插件找不到 `codex`，把 `command -v codex` 返回的绝对路径填进设置里的 `Codex path`
 4. 按需设置 `Model` 和 `Reasoning effort`
 5. 只有在你完全信任当前 Vault 和本机环境时，再开启 `YOLO mode`
@@ -99,7 +108,7 @@ command -v codex
 
 优先检查：
 
-1. `.obsidian/plugins/obsidian-codex/` 里是否是最新的 `main.js`、`manifest.json`、`styles.css`
+1. `.obsidian/plugins/codexian/` 里是否是最新的 `main.js`、`manifest.json`、`styles.css`
 2. 是否已经在 Obsidian 里重新加载插件或重启应用
 
 ## 开发

@@ -3,7 +3,7 @@ name: Release
 on:
   push:
     tags:
-      - 'v*'
+      - '*.*.*'
 
 permissions:
   contents: write
@@ -43,10 +43,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           VERSION="$(node -p "require('./package.json').version")"
+          PLUGIN_ID="$(node -p "require('./manifest.json').id")"
           gh release create "${GITHUB_REF_NAME}" \
             "release/main.js" \
             "release/manifest.json" \
             "release/styles.css" \
-            "release/obsidian-codex-${VERSION}.zip" \
+            "release/${PLUGIN_ID}-${VERSION}.zip" \
             --generate-notes \
-            --title "v${VERSION}"
+            --title "${VERSION}"

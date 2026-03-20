@@ -13,7 +13,7 @@ function normalizeTagVersion(tag) {
     return null;
   }
 
-  return tag.replace(/^refs\/tags\//u, "").replace(/^v/u, "");
+  return tag.replace(/^refs\/tags\//u, "");
 }
 
 const packageJson = readJson("package.json");
@@ -37,6 +37,10 @@ if (!Object.prototype.hasOwnProperty.call(versions, expectedVersion)) {
 }
 
 const tagVersion = normalizeTagVersion(process.argv[2] ?? process.env.GITHUB_REF_NAME);
+
+if (tagVersion?.startsWith("v")) {
+  errors.push(`tag version ${tagVersion} must not start with "v". Use ${expectedVersion}.`);
+}
 
 if (tagVersion && tagVersion !== expectedVersion) {
   errors.push(`tag version ${tagVersion} does not match package.json version ${expectedVersion}.`);

@@ -15,7 +15,7 @@ export function getPastedImageCacheDirectory(vaultRootPath: string): string {
     vaultRootPath,
     ".obsidian",
     "plugins",
-    "obsidian-codex",
+    "codexian",
     ".cache",
     "pasted-images"
   );

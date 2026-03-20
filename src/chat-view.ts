@@ -178,7 +178,7 @@ export class ChatView extends ItemView {
   }
 
   getDisplayText(): string {
-    return "Obsidian Codex";
+    return "Codexian";
   }
 
   getIcon(): string {
@@ -227,7 +227,7 @@ export class ChatView extends ItemView {
     const brandEl = headerEl.createDiv({ cls: "obsidian-codex-brand" });
     const brandIconEl = brandEl.createSpan({ cls: "obsidian-codex-brand-icon" });
     setIcon(brandIconEl, CODEX_ICON);
-    brandEl.createSpan({ cls: "obsidian-codex-brand-label", text: "Obsidian Codex" });
+    brandEl.createSpan({ cls: "obsidian-codex-brand-label", text: "Codexian" });
 
     const stageEl = contentEl.createDiv({ cls: "obsidian-codex-stage" });
     this.emptyStateEl = stageEl.createDiv({ cls: "obsidian-codex-empty-state" });

@@ -1,4 +1,5 @@
 import { existsSync, readFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
@@ -22,7 +23,7 @@ describe("release distribution source", () => {
     const workflow = readFileSync(workflowPath, "utf8");
 
     expect(workflow).toContain("tags:");
-    expect(workflow).toContain("- 'v*'");
+    expect(workflow).toContain("- '*.*.*'");
     expect(workflow).toContain("npm run release:check -- ${GITHUB_REF_NAME}");
     expect(workflow).toContain("npm run release:bundle");
   });
@@ -32,7 +33,45 @@ describe("release distribution source", () => {
 
     expect(readme).toContain("## 安装");
     expect(readme).toContain("GitHub Release");
-    expect(readme).toContain(".obsidian/plugins/obsidian-codex");
+    expect(readme).toContain(".obsidian/plugins/codexian");
     expect(readme).not.toContain("### 1. 从源码构建");
+  });
+
+  it("requires a root LICENSE and the community-safe plugin id", () => {
+    expect(existsSync(resolve(__dirname, "../LICENSE"))).toBe(true);
+
+    const manifest = JSON.parse(
+      readFileSync(resolve(__dirname, "../manifest.json"), "utf8")
+    ) as {
+      id: string;
+      name: string;
+    };
+
+    expect(manifest.id).toBe("codexian");
+    expect(manifest.name).toBe("Codexian");
+  });
+
+  it("accepts bare semver tags and rejects v-prefixed tags", () => {
+    const projectRoot = resolve(__dirname, "..");
+    const packageJson = JSON.parse(
+      readFileSync(resolve(projectRoot, "package.json"), "utf8")
+    ) as {
+      version: string;
+    };
+    const expectedVersion = packageJson.version;
+
+    const successOutput = execFileSync("node", ["scripts/check-release-version.mjs", expectedVersion], {
+      cwd: projectRoot,
+      encoding: "utf8"
+    });
+    expect(successOutput).toContain(`Release version validated: ${expectedVersion}`);
+
+    expect(() =>
+      execFileSync("node", ["scripts/check-release-version.mjs", `v${expectedVersion}`], {
+        cwd: projectRoot,
+        encoding: "utf8",
+        stdio: "pipe"
+      })
+    ).toThrow();
   });
 });
