@@ -834,9 +834,9 @@ export class ChatView extends ItemView {
     this.inputEl.focus();
   }
 
-  private clearComposerAttachments(): void {
+  private cleanupAttachmentFiles(attachments: ReadonlyArray<ComposerAttachment>): void {
     const vaultRootPath = this.getVaultRootPath();
-    for (const attachment of this.attachments) {
+    for (const attachment of attachments) {
       if (attachment.kind !== "pasted-image" || !vaultRootPath) {
         continue;
       }
@@ -847,7 +847,10 @@ export class ChatView extends ItemView {
         // Ignore cache cleanup failures; stale cache files are lower risk than breaking the view.
       }
     }
+  }
 
+  private clearComposerAttachments(): void {
+    this.cleanupAttachmentFiles(this.attachments);
     this.attachments = [];
     this.mentionState = null;
     if (this.attachmentStripEl && this.mentionDropdownEl) {
@@ -1184,6 +1187,9 @@ export class ChatView extends ItemView {
       return;
     }
 
+    const draftInputValue = this.inputEl.value;
+    const draftAttachments = [...this.attachments];
+
     const threadOptions = this.buildThreadOptions();
     if (!threadOptions.workingDirectory) {
       new Notice("Could not determine the local vault path for Codex.", 8000);
@@ -1212,6 +1218,10 @@ export class ChatView extends ItemView {
     this.wasCancelled = false;
     this.setHistoryPopoverOpen(false);
     this.appendMessage("user", this.formatUserTurnText(userInput));
+    this.inputEl.value = "";
+    this.attachments = [];
+    this.mentionState = null;
+    this.updateComposerState();
     const assistantTurn = this.createAssistantTurn();
     this.setSendingState(true);
 
@@ -1373,8 +1383,12 @@ export class ChatView extends ItemView {
     } finally {
       this.setSendingState(false);
       if (turnCompleted) {
-        this.inputEl.value = "";
-        this.clearComposerAttachments();
+        this.cleanupAttachmentFiles(draftAttachments);
+      } else {
+        this.inputEl.value = draftInputValue;
+        this.attachments = draftAttachments;
+        this.updateMentionState();
+        this.updateComposerState();
       }
       await this.updateContextSummary();
     }

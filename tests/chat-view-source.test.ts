@@ -34,4 +34,14 @@ describe("chat-view history markup", () => {
     expect(source).toContain('this.mentionDropdownEl = inputShellEl.createDiv({ cls: "obsidian-codex-mention-dropdown" });');
     expect(source).toContain('this.attachmentStripEl = inputShellEl.createDiv({ cls: "obsidian-codex-attachment-strip" });');
   });
+
+  it("clears the composer immediately after send while preserving attachment cleanup hooks", () => {
+    const source = readFileSync(resolve(__dirname, "../src/chat-view.ts"), "utf8");
+
+    expect(source).toContain("const draftInputValue = this.inputEl.value;");
+    expect(source).toContain("const draftAttachments = [...this.attachments];");
+    expect(source).toContain('this.inputEl.value = "";');
+    expect(source).toContain("this.attachments = [];");
+    expect(source).toContain("this.cleanupAttachmentFiles(draftAttachments);");
+  });
 });
