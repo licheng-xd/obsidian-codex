@@ -26,6 +26,7 @@ describe("chat-view history markup", () => {
     expect(source).toContain("void this.handleInputPaste(event);");
     expect(source).toContain('this.registerDomEvent(this.inputEl, "input", () => this.handleComposerInput());');
     expect(source).toContain("attachments: await this.resolveContextAttachments()");
+    expect(source).toContain("this.app.vault.configDir");
   });
 
   it("renders attachment and mention containers inside the input shell", () => {

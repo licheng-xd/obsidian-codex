@@ -10,10 +10,10 @@ const IMAGE_EXTENSION_BY_MIME: Record<string, string> = {
 
 export const IMAGE_ATTACHMENT_MAX_BYTES = 10 * 1024 * 1024;
 
-export function getPastedImageCacheDirectory(vaultRootPath: string): string {
+export function getPastedImageCacheDirectory(vaultRootPath: string, vaultConfigDir: string): string {
   return path.join(
     vaultRootPath,
-    ".obsidian",
+    vaultConfigDir,
     "plugins",
     "codexian",
     ".cache",
@@ -37,26 +37,28 @@ function normalizeTimestamp(timestamp: string): string {
 
 export function createPastedImagePath(
   vaultRootPath: string,
+  vaultConfigDir: string,
   mimeType: string,
   timestamp = new Date().toISOString()
 ): string {
   validatePastedImage(mimeType, 0);
   const extension = IMAGE_EXTENSION_BY_MIME[mimeType];
   return path.join(
-    getPastedImageCacheDirectory(vaultRootPath),
+    getPastedImageCacheDirectory(vaultRootPath, vaultConfigDir),
     `paste-${normalizeTimestamp(timestamp)}.${extension}`
   );
 }
 
 export function writePastedImage(
   vaultRootPath: string,
+  vaultConfigDir: string,
   bytes: Uint8Array,
   mimeType: string,
   timestamp = new Date().toISOString()
 ): string {
   validatePastedImage(mimeType, bytes.byteLength);
 
-  const targetPath = createPastedImagePath(vaultRootPath, mimeType, timestamp);
+  const targetPath = createPastedImagePath(vaultRootPath, vaultConfigDir, mimeType, timestamp);
   mkdirSync(path.dirname(targetPath), { recursive: true });
   writeFileSync(targetPath, bytes);
   return targetPath;

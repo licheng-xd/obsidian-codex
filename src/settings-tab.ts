@@ -20,8 +20,6 @@ export class ObsidianCodexSettingTab extends PluginSettingTab {
     const { containerEl } = this;
     containerEl.empty();
 
-    containerEl.createEl("h2", { text: "Codexian settings" });
-
     new Setting(containerEl)
       .setName("Codex path")
       .setDesc("Optional absolute path to the codex CLI. Leave empty to use PATH.")

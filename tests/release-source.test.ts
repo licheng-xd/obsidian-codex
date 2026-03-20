@@ -33,7 +33,7 @@ describe("release distribution source", () => {
 
     expect(readme).toContain("## 安装");
     expect(readme).toContain("GitHub Release");
-    expect(readme).toContain(".obsidian/plugins/codexian");
+    expect(readme).toContain("Vault 配置目录");
     expect(readme).not.toContain("### 1. 从源码构建");
   });
 

@@ -21,7 +21,7 @@
   - 只记录 Vault 相对路径
   - 在发送瞬间读取文件内容快照
 - `pasted-image`
-  - 写入 Vault 内插件缓存目录 `.obsidian/plugins/codexian/.cache/pasted-images/`
+  - 写入 Vault 配置目录下的插件缓存目录 `plugins/codexian/.cache/pasted-images/`
   - 在 prompt 中传递相对路径和元信息，不直接内联图片内容
 
 输入区继续使用普通 `textarea`，不升级为富文本编辑器：

@@ -761,6 +761,7 @@ export class ChatView extends ItemView {
     const bytes = new Uint8Array(await imageFile.arrayBuffer());
     const writtenPath = writePastedImage(
       vaultRootPath,
+      this.app.vault.configDir,
       bytes,
       imageFile.type,
       `${new Date().toISOString()}-${attachmentId}`

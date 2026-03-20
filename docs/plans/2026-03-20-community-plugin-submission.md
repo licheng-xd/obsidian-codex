@@ -37,7 +37,7 @@ Core capabilities in the initial release:
 - Requires a locally installed and authenticated OpenAI Codex CLI
 - Network access is performed by the local Codex CLI when it talks to OpenAI and related network resources
 - No telemetry, ads, or paywall are built into the plugin
-- Pasted images are stored inside the Vault at `.obsidian/plugins/codexian/.cache/pasted-images/`
+- Pasted images are stored inside the Vault config directory at `plugins/codexian/.cache/pasted-images/` (usually under `.obsidian/`)
 - The optional `YOLO mode` is an explicit high-risk override that relaxes approval and sandbox restrictions
 
 ## Checklist

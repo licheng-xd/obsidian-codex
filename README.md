@@ -17,7 +17,7 @@
 - 单轮最多附加 5 个文件引用
 - 图片只支持粘贴，不支持拖拽、外链和外部目录
 - 单轮最多附加 3 张图片
-- 粘贴图片会先写入 `.obsidian/plugins/codexian/.cache/pasted-images/`
+- 粘贴图片会先写入 Vault 配置目录下的 `plugins/codexian/.cache/pasted-images/`
 
 ## 运行要求
 
@@ -35,7 +35,7 @@
 - 插件本身不包含遥测、广告或付费墙
 - 联网行为主要由本机 Codex CLI 执行，用于访问 OpenAI 及其调用链路需要的网络资源
 - 插件会读取你显式提供给当前会话的本地上下文，包括当前笔记、当前选区、`@` 引用文件和粘贴图片附件
-- 粘贴图片会写入 Vault 内的插件缓存目录 `.obsidian/plugins/codexian/.cache/pasted-images/`
+- 粘贴图片会写入 Vault 配置目录下的插件缓存目录 `plugins/codexian/.cache/pasted-images/`，默认配置目录通常是 `.obsidian`
 - `YOLO mode` 为显式高风险开关，开启后会把审批策略设为 `never`，并允许更高权限的本地执行
 
 ## 安装
@@ -43,7 +43,7 @@
 ### 方式一：GitHub Release 安装（推荐）
 
 1. 打开 [GitHub Release](https://github.com/licheng-xd/obsidian-codex/releases) 页面，下载最新的 `codexian-x.y.z.zip`
-2. 解压到你的 Vault 插件目录：`.obsidian/plugins/codexian/`
+2. 解压到你的 Vault 插件目录：`<Vault 配置目录>/plugins/codexian/`，默认通常是 `.obsidian/plugins/codexian/`
 3. 确认目录中有以下 3 个文件：
    - `main.js`
    - `manifest.json`
@@ -51,7 +51,7 @@
 4. 打开 Obsidian，进入 `设置 -> 第三方插件`
 5. 关闭安全模式并启用 `Codexian`
 
-如果解压后多了一层目录，直接把这 3 个文件移动到 `.obsidian/plugins/codexian/` 即可。
+如果解压后多了一层目录，直接把这 3 个文件移动到 `<Vault 配置目录>/plugins/codexian/` 即可。
 
 ### 方式二：分别下载 3 个文件
 
@@ -64,7 +64,7 @@
 然后把它们放到：
 
 ```text
-<你的 Vault>/.obsidian/plugins/codexian/
+<你的 Vault>/<Vault 配置目录>/plugins/codexian/
 ```
 
 ## 首次配置
@@ -108,7 +108,7 @@ command -v codex
 
 优先检查：
 
-1. `.obsidian/plugins/codexian/` 里是否是最新的 `main.js`、`manifest.json`、`styles.css`
+1. `<Vault 配置目录>/plugins/codexian/` 里是否是最新的 `main.js`、`manifest.json`、`styles.css`
 2. 是否已经在 Obsidian 里重新加载插件或重启应用
 
 ## 开发

@@ -33,14 +33,20 @@ function createTempRoot(): string {
 }
 
 describe("pasted-image-store", () => {
-  it("uses the plugin cache directory inside the vault", () => {
-    expect(getPastedImageCacheDirectory("/vault")).toBe(
+  it("uses the plugin cache directory inside the configured vault config dir", () => {
+    expect(getPastedImageCacheDirectory("/vault", ".obsidian")).toBe(
       "/vault/.obsidian/plugins/codexian/.cache/pasted-images"
     );
   });
 
+  it("supports custom vault config directories", () => {
+    expect(getPastedImageCacheDirectory("/vault", ".config/obsidian")).toBe(
+      "/vault/.config/obsidian/plugins/codexian/.cache/pasted-images"
+    );
+  });
+
   it("creates a deterministic file path for a pasted image", () => {
-    expect(createPastedImagePath("/vault", "image/png", "2026-03-20T05:00:00.000Z")).toBe(
+    expect(createPastedImagePath("/vault", ".obsidian", "image/png", "2026-03-20T05:00:00.000Z")).toBe(
       "/vault/.obsidian/plugins/codexian/.cache/pasted-images/paste-2026-03-20T05-00-00-000Z.png"
     );
   });
@@ -58,7 +64,7 @@ describe("pasted-image-store", () => {
   it("writes the pasted image to disk", () => {
     const root = createTempRoot();
     const imageBuffer = Buffer.from([1, 2, 3, 4]);
-    const writtenPath = writePastedImage(root, imageBuffer, "image/png", "2026-03-20T05:00:00.000Z");
+    const writtenPath = writePastedImage(root, ".obsidian", imageBuffer, "image/png", "2026-03-20T05:00:00.000Z");
 
     expect(readFileSync(writtenPath)).toEqual(imageBuffer);
   });
@@ -66,7 +72,7 @@ describe("pasted-image-store", () => {
   it("deletes a pasted image by its vault-relative path", () => {
     const root = createTempRoot();
     const imageBuffer = Buffer.from([1, 2, 3, 4]);
-    const writtenPath = writePastedImage(root, imageBuffer, "image/png", "2026-03-20T05:00:00.000Z");
+    const writtenPath = writePastedImage(root, ".obsidian", imageBuffer, "image/png", "2026-03-20T05:00:00.000Z");
 
     deletePastedImage(root, ".obsidian/plugins/codexian/.cache/pasted-images/paste-2026-03-20T05-00-00-000Z.png");
 
