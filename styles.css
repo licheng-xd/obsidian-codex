@@ -11,6 +11,7 @@
   --obsidian-codex-soft: var(--text-faint);
   --obsidian-codex-accent: var(--interactive-accent);
   --obsidian-codex-accent-strong: var(--interactive-accent-hover, var(--interactive-accent));
+  --obsidian-codex-reasoning: #82dda3;
   --obsidian-codex-accent-contrast: var(--text-on-accent, var(--background-primary));
   --obsidian-codex-accent-soft: rgba(46, 125, 80, 0.1);
   --obsidian-codex-highlight-soft: rgba(46, 125, 80, 0.08);
@@ -130,6 +131,7 @@
   --obsidian-codex-highlight-strong: rgba(46, 125, 80, 0.14);
   --obsidian-codex-accent-outline: rgba(46, 125, 80, 0.22);
   --obsidian-codex-overlay: rgba(255, 255, 255, 0.58);
+  --obsidian-codex-reasoning: #2f7d4f;
 }
 
 .obsidian-codex-header {
@@ -147,7 +149,7 @@
 }
 
 .obsidian-codex-brand-icon {
-  color: var(--obsidian-codex-accent);
+  color: var(--obsidian-codex-reasoning);
   display: inline-flex;
 }
 
@@ -257,7 +259,7 @@
 
 .obsidian-codex-turn-meta {
   align-items: center;
-  color: var(--obsidian-codex-accent);
+  color: var(--obsidian-codex-reasoning);
   display: inline-flex;
   font-family: var(--font-monospace);
   font-size: 10px;
@@ -285,7 +287,7 @@
 
 .obsidian-codex-turn-meta-signal span {
   animation: obsidian-codex-pulse-bars 1s ease-in-out infinite;
-  background: var(--obsidian-codex-accent);
+  background: var(--obsidian-codex-reasoning);
   border-radius: 999px;
   display: inline-block;
   height: 5px;
@@ -528,7 +530,7 @@
 }
 
 .obsidian-codex-system-event-detail.is-reasoning {
-  color: var(--obsidian-codex-accent-strong);
+  color: var(--obsidian-codex-reasoning);
   font-family: var(--font-monospace);
 }
 
@@ -841,12 +843,12 @@
 }
 
 .obsidian-codex-tray-action.is-cancel:not(:disabled) {
-  background: var(--obsidian-codex-accent);
+  background: var(--obsidian-codex-reasoning);
   color: var(--obsidian-codex-accent-contrast);
 }
 
 .obsidian-codex-tray-action.is-cancel:hover:not(:disabled) {
-  background: var(--obsidian-codex-accent);
+  background: var(--obsidian-codex-reasoning);
   color: var(--obsidian-codex-accent-contrast);
 }
 
@@ -942,7 +944,7 @@
 .obsidian-codex-statusbar-trigger {
   background: transparent;
   border: 0;
-  color: var(--obsidian-codex-accent);
+  color: var(--obsidian-codex-reasoning);
   cursor: default;
   font-size: 11px;
   font-weight: 600;
@@ -1003,11 +1005,11 @@
 
 .obsidian-codex-statusbar-menu-item:hover,
 .obsidian-codex-statusbar-menu-item.is-selected {
-  color: var(--obsidian-codex-accent-strong);
+  color: var(--obsidian-codex-reasoning);
 }
 
 .obsidian-codex-statusbar-menu-item:hover {
-  border-left-color: var(--obsidian-codex-accent);
+  border-left-color: var(--obsidian-codex-reasoning);
   transform: translateX(1px);
 }
 
@@ -1076,12 +1078,12 @@
 }
 
 .obsidian-codex-statusbar-switch[aria-checked="true"]::before {
-  background: var(--obsidian-codex-accent);
+  background: var(--obsidian-codex-reasoning);
   transform: translateX(16px);
 }
 
 .obsidian-codex-statusbar.is-yolo-active .obsidian-codex-statusbar-yolo-label {
-  color: var(--obsidian-codex-accent);
+  color: var(--obsidian-codex-reasoning);
 }
 
 @media (max-width: 720px) {
