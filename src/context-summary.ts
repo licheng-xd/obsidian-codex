@@ -2,6 +2,8 @@ export interface ContextSummaryInput {
   vaultRootPath?: string;
   activeNotePath?: string;
   selectionText?: string;
+  referencedFileCount?: number;
+  imageAttachmentCount?: number;
 }
 
 export interface ContextSummaryLine {
@@ -11,7 +13,17 @@ export interface ContextSummaryLine {
 
 export function getContextSummaryLines(input: ContextSummaryInput): ContextSummaryLine[] {
   const vaultRootLabel = input.vaultRootPath ?? "Unavailable";
-  return [{ label: "Vault root", value: vaultRootLabel }];
+  const lines: ContextSummaryLine[] = [{ label: "Vault root", value: vaultRootLabel }];
+
+  if ((input.referencedFileCount ?? 0) > 0) {
+    lines.push({ label: "Refs", value: String(input.referencedFileCount) });
+  }
+
+  if ((input.imageAttachmentCount ?? 0) > 0) {
+    lines.push({ label: "Images", value: String(input.imageAttachmentCount) });
+  }
+
+  return lines;
 }
 
 export function formatContextSummary(input: ContextSummaryInput): string {

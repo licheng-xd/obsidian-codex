@@ -24,6 +24,16 @@ describe("formatContextSummary", () => {
       })
     ).toBe("Vault root: /vault");
   });
+
+  it("shows reference and image attachment counts when present", () => {
+    expect(
+      formatContextSummary({
+        vaultRootPath: "/vault",
+        referencedFileCount: 2,
+        imageAttachmentCount: 1
+      })
+    ).toBe("Vault root: /vault\nRefs: 2\nImages: 1");
+  });
 });
 
 describe("getContextSummaryLines", () => {
@@ -35,5 +45,19 @@ describe("getContextSummaryLines", () => {
         selectionText: "hello"
       })
     ).toEqual([{ label: "Vault root", value: "/Users/licheng/Vault" }]);
+  });
+
+  it("appends attachment counters after the vault root", () => {
+    expect(
+      getContextSummaryLines({
+        vaultRootPath: "/Users/licheng/Vault",
+        referencedFileCount: 3,
+        imageAttachmentCount: 1
+      })
+    ).toEqual([
+      { label: "Vault root", value: "/Users/licheng/Vault" },
+      { label: "Refs", value: "3" },
+      { label: "Images", value: "1" }
+    ]);
   });
 });

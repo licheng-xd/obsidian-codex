@@ -10,6 +10,7 @@ import {
   setIcon
 } from "obsidian";
 import type { ThreadOptions } from "@openai/codex-sdk";
+import * as nodePath from "node:path";
 import {
   insertTextAtSelection,
   shouldInsertLineBreakFromKeydown,
@@ -24,6 +25,7 @@ import type {
 } from "./chat-session";
 import { getSessionDisplayTitle, resolveSessionTitle, upsertRecentSession } from "./chat-session";
 import {
+  MAX_FILE_ATTACHMENTS,
   NOTE_CHAR_LIMIT,
   THREAD_CONTEXT_CHAR_LIMIT,
   buildContextPayload,
@@ -31,6 +33,14 @@ import {
   omitActiveNoteContext,
   type ContextInput
 } from "./context-builder";
+import {
+  addComposerAttachment,
+  countAttachmentsByKind,
+  hasAttachmentPath,
+  removeComposerAttachment,
+  type ComposerAttachment
+} from "./composer-attachments";
+import { formatContextSummary } from "./context-summary";
 import { CODEX_ICON } from "./codex-icon";
 import { mapThreadEvent } from "./codex-service";
 import { renderEventCard } from "./event-cards";
@@ -41,6 +51,9 @@ import {
 } from "./event-summary";
 import { enhanceRenderedAssistantLinks } from "./assistant-link-opener";
 import type ObsidianCodexPlugin from "./main";
+import { findActiveMentionQuery } from "./mention-query";
+import { deletePastedImage, writePastedImage } from "./pasted-image-store";
+import { searchReferencePaths } from "./reference-search";
 import { DEFAULT_SETTINGS, patchPluginSettings, toggleYoloMode } from "./settings";
 import { StatusBar } from "./status-bar";
 import type {
@@ -68,6 +81,8 @@ const SAVE_PLANNER_GUIDANCE_CHAR_LIMIT = 2000;
 const SAVE_PLANNER_FOLDER_DEPTH_LIMIT = 3;
 const SAVE_PLANNER_FOLDER_LIMIT = 40;
 const SAVE_PLANNER_SAMPLE_FILE_LIMIT = 5;
+const MAX_IMAGE_ATTACHMENTS = 3;
+const MAX_MENTION_RESULTS = 8;
 
 type ChatMessageRole = "user" | "status";
 
@@ -91,10 +106,42 @@ type VisibleAssistantEvent =
   | MappedErrorEvent
   | { type: "turn_failed"; message: string };
 
+interface MentionState {
+  query: string;
+  rangeStart: number;
+  rangeEnd: number;
+  highlightedIndex: number;
+  candidates: string[];
+}
+
+function normalizeAttachmentPath(path: string): string {
+  return path.replaceAll("\\", "/");
+}
+
+function getAttachmentBasename(path: string): string {
+  const normalizedPath = normalizeAttachmentPath(path);
+  const segments = normalizedPath.split("/");
+  return segments[segments.length - 1] ?? normalizedPath;
+}
+
+function formatAttachmentSize(sizeBytes: number): string {
+  if (sizeBytes < 1024) {
+    return `${sizeBytes} B`;
+  }
+
+  if (sizeBytes < 1024 * 1024) {
+    return `${Math.round(sizeBytes / 102.4) / 10} KB`;
+  }
+
+  return `${Math.round(sizeBytes / 104857.6) / 10} MB`;
+}
+
 export class ChatView extends ItemView {
   private emptyStateEl!: HTMLDivElement;
   private messagesEl!: HTMLDivElement;
   private inputEl!: HTMLTextAreaElement;
+  private mentionDropdownEl!: HTMLDivElement;
+  private attachmentStripEl!: HTMLDivElement;
   private historyButtonEl!: HTMLButtonElement;
   private historyPopoverEl!: HTMLDivElement;
   private historyListEl!: HTMLDivElement;
@@ -108,6 +155,9 @@ export class ChatView extends ItemView {
   private sessionStarted = false;
   private isSending = false;
   private wasCancelled = false;
+  private attachments: ComposerAttachment[] = [];
+  private mentionState: MentionState | null = null;
+  private attachmentIdCounter = 0;
   private selectionChangeTimer: number | null = null;
   private contextUsage: ContextUsage = {
     localCharsUsed: 0,
@@ -162,6 +212,7 @@ export class ChatView extends ItemView {
 
   async onClose(): Promise<void> {
     this.clearScheduledContextSummaryUpdate();
+    this.clearComposerAttachments();
     this.plugin.codexService.clearThread();
     this.statusBar?.destroy();
     this.statusBar = null;
@@ -225,8 +276,30 @@ export class ChatView extends ItemView {
     this.inputEl.rows = 4;
 
     this.registerDomEvent(this.inputEl, "focus", () => void this.updateContextSummary());
-    this.registerDomEvent(this.inputEl, "input", () => this.updateComposerState());
+    this.registerDomEvent(this.inputEl, "input", () => this.handleComposerInput());
+    this.registerDomEvent(this.inputEl, "click", () => this.handleComposerInput());
+    this.registerDomEvent(this.inputEl, "keyup", () => this.handleComposerInput());
+    this.registerDomEvent(this.inputEl, "paste", (event: ClipboardEvent) => {
+      void this.handleInputPaste(event);
+    });
     this.registerDomEvent(this.inputEl, "keydown", (event: KeyboardEvent) => {
+      if (this.handleMentionKeydown(event)) {
+        return;
+      }
+
+      if (
+        event.key === "Backspace" &&
+        !this.isSending &&
+        this.attachments.length > 0 &&
+        !this.inputEl.value &&
+        (this.inputEl.selectionStart ?? 0) === 0 &&
+        (this.inputEl.selectionEnd ?? 0) === 0
+      ) {
+        event.preventDefault();
+        void this.removeAttachment(this.attachments[this.attachments.length - 1]);
+        return;
+      }
+
       const keyInput = {
         key: event.key,
         metaKey: event.metaKey,
@@ -258,6 +331,8 @@ export class ChatView extends ItemView {
         this.updateComposerState();
       }
     });
+    this.mentionDropdownEl = inputShellEl.createDiv({ cls: "obsidian-codex-mention-dropdown" });
+    this.attachmentStripEl = inputShellEl.createDiv({ cls: "obsidian-codex-attachment-strip" });
 
     const trayFooterEl = trayEl.createDiv({ cls: "obsidian-codex-tray-footer" });
     this.statusBar?.destroy();
@@ -431,10 +506,362 @@ export class ChatView extends ItemView {
     }
   }
 
+  private createAttachmentId(prefix: string): string {
+    this.attachmentIdCounter += 1;
+    return `${prefix}-${this.attachmentIdCounter}`;
+  }
+
+  private handleComposerInput(): void {
+    this.updateMentionState();
+    this.updateComposerState();
+  }
+
+  private updateMentionState(): void {
+    const mentionMatch = findActiveMentionQuery(
+      this.inputEl.value,
+      this.inputEl.selectionStart ?? this.inputEl.value.length
+    );
+    if (!mentionMatch) {
+      this.mentionState = null;
+      return;
+    }
+
+    const activeNotePath = this.app.workspace.getActiveFile()?.path;
+    const candidatePaths = searchReferencePaths(
+      this.app.vault.getMarkdownFiles()
+        .map((file) => file.path)
+        .filter((path) => !hasAttachmentPath(this.attachments, path)),
+      mentionMatch.query,
+      {
+        activeNotePath,
+        limit: MAX_MENTION_RESULTS
+      }
+    );
+    const previousCandidate = this.mentionState?.candidates[this.mentionState.highlightedIndex];
+    const nextHighlightedIndex = previousCandidate
+      ? Math.max(0, candidatePaths.indexOf(previousCandidate))
+      : 0;
+
+    this.mentionState = {
+      ...mentionMatch,
+      highlightedIndex: Math.min(nextHighlightedIndex, Math.max(0, candidatePaths.length - 1)),
+      candidates: candidatePaths
+    };
+  }
+
+  private handleMentionKeydown(event: KeyboardEvent): boolean {
+    if (!this.mentionState || this.isSending) {
+      return false;
+    }
+
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      event.preventDefault();
+      const candidateCount = this.mentionState.candidates.length;
+      if (candidateCount === 0) {
+        return true;
+      }
+
+      const direction = event.key === "ArrowDown" ? 1 : -1;
+      const nextIndex = (this.mentionState.highlightedIndex + direction + candidateCount) % candidateCount;
+      this.mentionState = {
+        ...this.mentionState,
+        highlightedIndex: nextIndex
+      };
+      this.renderMentionDropdown();
+      return true;
+    }
+
+    if ((event.key === "Enter" || event.key === "Tab") && this.mentionState.candidates.length > 0) {
+      event.preventDefault();
+      void this.selectMentionCandidate(this.mentionState.highlightedIndex);
+      return true;
+    }
+
+    if (event.key === "Escape") {
+      event.preventDefault();
+      this.mentionState = null;
+      this.renderMentionDropdown();
+      return true;
+    }
+
+    return false;
+  }
+
+  private async selectMentionCandidate(index: number): Promise<void> {
+    const mentionState = this.mentionState;
+    if (!mentionState) {
+      return;
+    }
+
+    const candidatePath = mentionState.candidates[index];
+    if (!candidatePath) {
+      return;
+    }
+
+    if (
+      countAttachmentsByKind(this.attachments)["vault-file"] >= MAX_FILE_ATTACHMENTS &&
+      !hasAttachmentPath(this.attachments, candidatePath)
+    ) {
+      new Notice(`You can attach up to ${MAX_FILE_ATTACHMENTS} files per turn.`, 6000);
+      return;
+    }
+
+    const nextValue = insertTextAtSelection({
+      value: this.inputEl.value,
+      selectionStart: mentionState.rangeStart,
+      selectionEnd: mentionState.rangeEnd,
+      text: ""
+    });
+    this.inputEl.value = nextValue.value;
+    this.inputEl.selectionStart = nextValue.selectionStart;
+    this.inputEl.selectionEnd = nextValue.selectionEnd;
+    this.attachments = addComposerAttachment(this.attachments, {
+      kind: "vault-file",
+      id: this.createAttachmentId("ref"),
+      path: candidatePath
+    });
+    this.mentionState = null;
+    this.updateComposerState();
+    await this.updateContextSummary();
+    this.inputEl.focus();
+  }
+
+  private renderMentionDropdown(): void {
+    this.mentionDropdownEl.replaceChildren();
+    const isOpen = !this.isSending && this.mentionState !== null;
+    this.mentionDropdownEl.classList.toggle("is-open", isOpen);
+    if (!isOpen || !this.mentionState) {
+      return;
+    }
+
+    if (this.mentionState.candidates.length === 0) {
+      this.mentionDropdownEl.createDiv({
+        cls: "obsidian-codex-mention-empty",
+        text: this.mentionState.query ? "No matching files." : "No markdown files available."
+      });
+      return;
+    }
+
+    this.mentionState.candidates.forEach((candidatePath, index) => {
+      const itemEl = this.mentionDropdownEl.createEl("button", {
+        cls: `obsidian-codex-mention-item${index === this.mentionState?.highlightedIndex ? " is-selected" : ""}`
+      });
+      itemEl.type = "button";
+      itemEl.createSpan({
+        cls: "obsidian-codex-mention-item-label",
+        text: getAttachmentBasename(candidatePath)
+      });
+      itemEl.createSpan({
+        cls: "obsidian-codex-mention-item-path",
+        text: candidatePath
+      });
+      itemEl.addEventListener("mousedown", (event) => {
+        event.preventDefault();
+      });
+      itemEl.addEventListener("click", () => {
+        void this.selectMentionCandidate(index);
+      });
+    });
+  }
+
+  private renderAttachmentStrip(): void {
+    this.attachmentStripEl.replaceChildren();
+    this.attachmentStripEl.classList.toggle("is-empty", this.attachments.length === 0);
+    if (this.attachments.length === 0) {
+      return;
+    }
+
+    for (const attachment of this.attachments) {
+      const chipEl = this.attachmentStripEl.createDiv({
+        cls: `obsidian-codex-attachment-chip${attachment.kind === "pasted-image" ? " is-image" : ""}`
+      });
+      const bodyEl = chipEl.createDiv({ cls: "obsidian-codex-attachment-body" });
+      bodyEl.createDiv({
+        cls: "obsidian-codex-attachment-label",
+        text: getAttachmentBasename(attachment.path)
+      });
+
+      const metaText = attachment.kind === "vault-file"
+        ? attachment.path
+        : [
+            attachment.mimeType.replace("image/", "").toUpperCase(),
+            formatAttachmentSize(attachment.sizeBytes),
+            typeof attachment.width === "number" && typeof attachment.height === "number"
+              ? `${attachment.width}x${attachment.height}`
+              : null
+          ]
+            .filter((value): value is string => Boolean(value))
+            .join(" · ");
+      bodyEl.createDiv({
+        cls: "obsidian-codex-attachment-meta",
+        text: metaText
+      });
+
+      const removeButtonEl = chipEl.createEl("button", {
+        cls: "obsidian-codex-attachment-remove",
+        text: "×"
+      });
+      removeButtonEl.type = "button";
+      removeButtonEl.ariaLabel = `Remove ${getAttachmentBasename(attachment.path)}`;
+      removeButtonEl.disabled = this.isSending;
+      removeButtonEl.addEventListener("click", () => {
+        void this.removeAttachment(attachment);
+      });
+    }
+  }
+
+  private async handleInputPaste(event: ClipboardEvent): Promise<void> {
+    if (this.isSending) {
+      return;
+    }
+
+    const imageFiles = Array.from(event.clipboardData?.items ?? [])
+      .filter((item) => item.kind === "file" && item.type.startsWith("image/"))
+      .map((item) => item.getAsFile())
+      .filter((file): file is File => file !== null);
+
+    if (imageFiles.length === 0) {
+      return;
+    }
+
+    const vaultRootPath = this.getVaultRootPath();
+    if (!vaultRootPath) {
+      new Notice("Could not determine the local vault path for pasted images.", 8000);
+      return;
+    }
+
+    event.preventDefault();
+    const existingImageCount = countAttachmentsByKind(this.attachments)["pasted-image"];
+    const remainingSlots = Math.max(0, MAX_IMAGE_ATTACHMENTS - existingImageCount);
+    if (remainingSlots === 0) {
+      new Notice(`You can attach up to ${MAX_IMAGE_ATTACHMENTS} images per turn.`, 6000);
+      return;
+    }
+
+    for (const imageFile of imageFiles.slice(0, remainingSlots)) {
+      try {
+        await this.attachPastedImage(vaultRootPath, imageFile);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        new Notice(`Could not attach pasted image: ${message}`, 8000);
+      }
+    }
+
+    if (imageFiles.length > remainingSlots) {
+      new Notice(`Only the first ${remainingSlots} pasted image(s) were attached.`, 6000);
+    }
+
+    this.updateMentionState();
+    this.updateComposerState();
+    await this.updateContextSummary();
+  }
+
+  private async attachPastedImage(vaultRootPath: string, imageFile: File): Promise<void> {
+    const attachmentId = this.createAttachmentId("image");
+    const bytes = new Uint8Array(await imageFile.arrayBuffer());
+    const writtenPath = writePastedImage(
+      vaultRootPath,
+      bytes,
+      imageFile.type,
+      `${new Date().toISOString()}-${attachmentId}`
+    );
+    const imageDimensions = await this.readImageDimensions(imageFile);
+    this.attachments = addComposerAttachment(this.attachments, {
+      kind: "pasted-image",
+      id: attachmentId,
+      path: normalizeAttachmentPath(nodePath.relative(vaultRootPath, writtenPath)),
+      mimeType: imageFile.type,
+      sizeBytes: imageFile.size,
+      width: imageDimensions.width,
+      height: imageDimensions.height
+    });
+  }
+
+  private async readImageDimensions(imageFile: Blob): Promise<{ width?: number; height?: number }> {
+    try {
+      if (typeof createImageBitmap === "function") {
+        const bitmap = await createImageBitmap(imageFile);
+        const dimensions = { width: bitmap.width, height: bitmap.height };
+        bitmap.close();
+        return dimensions;
+      }
+    } catch {
+      // Fall back to Image-based probing below.
+    }
+
+    const objectUrl = URL.createObjectURL(imageFile);
+    try {
+      const dimensions = await new Promise<{ width: number; height: number }>((resolve, reject) => {
+        const image = new Image();
+        image.onload = () => {
+          resolve({
+            width: image.naturalWidth,
+            height: image.naturalHeight
+          });
+        };
+        image.onerror = () => reject(new Error("Could not read pasted image dimensions."));
+        image.src = objectUrl;
+      });
+      return dimensions;
+    } catch {
+      return {};
+    } finally {
+      URL.revokeObjectURL(objectUrl);
+    }
+  }
+
+  private async removeAttachment(attachment: ComposerAttachment | undefined): Promise<void> {
+    if (!attachment) {
+      return;
+    }
+
+    if (attachment.kind === "pasted-image") {
+      const vaultRootPath = this.getVaultRootPath();
+      if (vaultRootPath) {
+        try {
+          deletePastedImage(vaultRootPath, attachment.path);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          new Notice(`Could not remove cached image: ${message}`, 8000);
+        }
+      }
+    }
+
+    this.attachments = removeComposerAttachment(this.attachments, attachment.id);
+    this.updateMentionState();
+    this.updateComposerState();
+    await this.updateContextSummary();
+    this.inputEl.focus();
+  }
+
+  private clearComposerAttachments(): void {
+    const vaultRootPath = this.getVaultRootPath();
+    for (const attachment of this.attachments) {
+      if (attachment.kind !== "pasted-image" || !vaultRootPath) {
+        continue;
+      }
+
+      try {
+        deletePastedImage(vaultRootPath, attachment.path);
+      } catch {
+        // Ignore cache cleanup failures; stale cache files are lower risk than breaking the view.
+      }
+    }
+
+    this.attachments = [];
+    this.mentionState = null;
+    if (this.attachmentStripEl && this.mentionDropdownEl) {
+      this.renderAttachmentStrip();
+      this.renderMentionDropdown();
+    }
+  }
+
   private updateComposerState(): void {
     this.historyButtonEl.disabled = this.isSending;
     this.cancelButtonEl.disabled = !this.isSending;
     this.inputEl.disabled = this.isSending;
+    this.renderMentionDropdown();
+    this.renderAttachmentStrip();
   }
 
   private refreshCanvasState(): void {
@@ -454,6 +881,8 @@ export class ChatView extends ItemView {
     this.sessionEntries = [];
     this.sessionStarted = false;
     this.wasCancelled = false;
+    this.inputEl.value = "";
+    this.clearComposerAttachments();
     this.messagesEl.empty();
     this.contextUsage = {
       ...this.contextUsage,
@@ -684,9 +1113,55 @@ export class ChatView extends ItemView {
     this.updateComposerState();
   }
 
+  private formatPendingAttachmentSummary(): string | null {
+    const counts = countAttachmentsByKind(this.attachments);
+    const parts: string[] = [];
+    if (counts["vault-file"] > 0) {
+      parts.push(`${counts["vault-file"]} file${counts["vault-file"] === 1 ? "" : "s"}`);
+    }
+    if (counts["pasted-image"] > 0) {
+      parts.push(`${counts["pasted-image"]} image${counts["pasted-image"] === 1 ? "" : "s"}`);
+    }
+
+    return parts.length > 0 ? parts.join(", ") : null;
+  }
+
+  private formatUserTurnText(userInput: string): string {
+    const trimmedInput = userInput.trim();
+    const attachmentSummary = this.formatPendingAttachmentSummary();
+    if (!attachmentSummary) {
+      return trimmedInput;
+    }
+
+    return trimmedInput
+      ? `${trimmedInput}\n\n[Attached ${attachmentSummary}]`
+      : `[Attached ${attachmentSummary}]`;
+  }
+
+  private async resolveContextAttachments(): Promise<ComposerAttachment[]> {
+    const resolvedAttachments: ComposerAttachment[] = [];
+    for (const attachment of this.attachments) {
+      if (attachment.kind === "vault-file") {
+        const file = this.app.vault.getAbstractFileByPath(attachment.path);
+        if (file instanceof TFile) {
+          resolvedAttachments.push({
+            ...attachment,
+            content: await this.app.vault.cachedRead(file)
+          });
+        }
+        continue;
+      }
+
+      resolvedAttachments.push({ ...attachment });
+    }
+
+    return resolvedAttachments;
+  }
+
   private async updateContextSummary(): Promise<void> {
     const context = await this.collectContext("");
     const localUsage = measureLocalContextUsage(context);
+    const attachmentCounts = countAttachmentsByKind(context.attachments ?? []);
     this.contextUsage = {
       ...this.contextUsage,
       localCharsUsed: localUsage.used,
@@ -694,11 +1169,18 @@ export class ChatView extends ItemView {
     };
     this.statusBar?.updateContextUsage(this.contextUsage);
     this.statusBar?.updateWorkingDirectory(this.getVaultRootPath());
+    this.inputEl.title = formatContextSummary({
+      vaultRootPath: this.getVaultRootPath(),
+      activeNotePath: context.activeNotePath,
+      selectionText: context.selectionText,
+      referencedFileCount: attachmentCounts["vault-file"],
+      imageAttachmentCount: attachmentCounts["pasted-image"]
+    });
   }
 
   private async handleSend(): Promise<void> {
     const userInput = this.inputEl.value.trim();
-    if (!userInput || this.isSending) {
+    if ((!userInput && this.attachments.length === 0) || this.isSending) {
       return;
     }
 
@@ -729,9 +1211,8 @@ export class ChatView extends ItemView {
 
     this.wasCancelled = false;
     this.setHistoryPopoverOpen(false);
-    this.appendMessage("user", userInput);
+    this.appendMessage("user", this.formatUserTurnText(userInput));
     const assistantTurn = this.createAssistantTurn();
-    this.inputEl.value = "";
     this.setSendingState(true);
 
     const eventElements = new Map<string, HTMLElement>();
@@ -748,6 +1229,7 @@ export class ChatView extends ItemView {
     let assistantMarkdown = "";
     let sawVisibleAssistantEvent = false;
     let streamErrorHandled = false;
+    let turnCompleted = false;
 
     try {
       for await (const event of this.plugin.codexService.sendMessage(prompt, threadOptions)) {
@@ -792,6 +1274,7 @@ export class ChatView extends ItemView {
             });
             await this.persistActiveSession();
           }
+          turnCompleted = true;
           continue;
         }
 
@@ -889,6 +1372,10 @@ export class ChatView extends ItemView {
       }
     } finally {
       this.setSendingState(false);
+      if (turnCompleted) {
+        this.inputEl.value = "";
+        this.clearComposerAttachments();
+      }
       await this.updateContextSummary();
     }
   }
@@ -1083,6 +1570,7 @@ export class ChatView extends ItemView {
         activeNotePath: file.path,
         activeNoteContent: markdownView.editor.getValue(),
         selectionText,
+        attachments: await this.resolveContextAttachments(),
         saveTargetPlan
       };
 
@@ -1096,6 +1584,7 @@ export class ChatView extends ItemView {
         userInput,
         activeNotePath: file.path,
         activeNoteContent: await this.app.vault.cachedRead(file),
+        attachments: await this.resolveContextAttachments(),
         saveTargetPlan
       };
 
@@ -1106,6 +1595,7 @@ export class ChatView extends ItemView {
 
     return {
       userInput,
+      attachments: await this.resolveContextAttachments(),
       saveTargetPlan
     };
   }

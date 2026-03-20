@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
+  FILE_ATTACHMENT_CHAR_LIMIT,
+  MAX_FILE_ATTACHMENTS,
   NOTE_CHAR_LIMIT,
   omitActiveNoteContext,
   buildContextPayload,
   measureLocalContextUsage
 } from "../src/context-builder";
+import type { ComposerAttachment } from "../src/composer-attachments";
 import { VAULT_ROOT_DIRECTORY } from "../src/vault-save-planner";
 
 describe("buildContextPayload", () => {
@@ -148,6 +151,92 @@ describe("buildContextPayload", () => {
     expect(usage).toEqual({
       used: NOTE_CHAR_LIMIT,
       limit: NOTE_CHAR_LIMIT
+    });
+  });
+
+  it("includes referenced vault files in a dedicated section", () => {
+    const payload = buildContextPayload({
+      userInput: "Compare these notes",
+      attachments: [
+        {
+          kind: "vault-file",
+          id: "file:notes/roadmap.md",
+          path: "notes/roadmap.md",
+          content: "Roadmap details"
+        } satisfies ComposerAttachment
+      ]
+    });
+
+    expect(payload).toContain("Referenced files:");
+    expect(payload).toContain("- path: notes/roadmap.md");
+    expect(payload).toContain("content:\nRoadmap details");
+  });
+
+  it("includes attached images as local file paths with metadata", () => {
+    const payload = buildContextPayload({
+      userInput: "Analyze this image",
+      attachments: [
+        {
+          kind: "pasted-image",
+          id: "image:cache/paste-1.png",
+          path: ".obsidian/plugins/obsidian-codex/.cache/pasted-images/paste-1.png",
+          mimeType: "image/png",
+          sizeBytes: 1024,
+          width: 640,
+          height: 480
+        } satisfies ComposerAttachment
+      ]
+    });
+
+    expect(payload).toContain("Attached images:");
+    expect(payload).toContain("If attached images are relevant, inspect them directly from the provided local paths.");
+    expect(payload).toContain("path: .obsidian/plugins/obsidian-codex/.cache/pasted-images/paste-1.png");
+    expect(payload).toContain("mime: image/png");
+    expect(payload).toContain("dimensions: 640x480");
+  });
+
+  it("does not duplicate the active note when it is already attached explicitly", () => {
+    const payload = buildContextPayload({
+      userInput: "Use the explicit attachment",
+      activeNotePath: "notes/roadmap.md",
+      activeNoteContent: "Roadmap details",
+      attachments: [
+        {
+          kind: "vault-file",
+          id: "file:notes/roadmap.md",
+          path: "notes/roadmap.md",
+          content: "Roadmap details"
+        } satisfies ComposerAttachment
+      ]
+    });
+
+    expect(payload).toContain("Referenced files:");
+    expect(payload).not.toContain("Active note (notes/roadmap.md):");
+  });
+
+  it("measures local usage from referenced file contents but not image bytes", () => {
+    const usage = measureLocalContextUsage({
+      userInput: "Measure this",
+      attachments: [
+        {
+          kind: "vault-file",
+          id: "file:notes/roadmap.md",
+          path: "notes/roadmap.md",
+          content: "Roadmap details"
+        } satisfies ComposerAttachment,
+        {
+          kind: "pasted-image",
+          id: "image:cache/paste-1.png",
+          path: ".obsidian/plugins/obsidian-codex/.cache/pasted-images/paste-1.png",
+          mimeType: "image/png",
+          sizeBytes: 999999
+        } satisfies ComposerAttachment
+      ]
+    });
+
+    expect(usage).toEqual({
+      used: 15,
+      limit: NOTE_CHAR_LIMIT + FILE_ATTACHMENT_CHAR_LIMIT
     });
   });
 });

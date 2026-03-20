@@ -2,17 +2,24 @@ import {
   VAULT_ROOT_DIRECTORY,
   type VaultSaveTargetPlan
 } from "./vault-save-planner";
+import {
+  isNotePathExplicitlyAttached,
+  type ComposerAttachment
+} from "./composer-attachments";
 
 export interface ContextInput {
   userInput: string;
   activeNotePath?: string;
   activeNoteContent?: string;
   selectionText?: string;
+  attachments?: ComposerAttachment[];
   saveTargetPlan?: VaultSaveTargetPlan;
 }
 
 export const NOTE_CHAR_LIMIT = 4000;
 export const THREAD_CONTEXT_CHAR_LIMIT = 40000;
+export const FILE_ATTACHMENT_CHAR_LIMIT = 1500;
+export const MAX_FILE_ATTACHMENTS = 5;
 
 export function omitActiveNoteContext(input: ContextInput): ContextInput {
   return {
@@ -35,6 +42,54 @@ function buildNoteExcerpt(input: Pick<ContextInput, "activeNotePath" | "activeNo
   }
 
   return sanitizeNoteContent(input.activeNoteContent, input.selectionText).trim();
+}
+
+function buildReferencedFileAttachments(attachments: ReadonlyArray<ComposerAttachment> | undefined): string {
+  const fileAttachments = attachments
+    ?.filter((attachment): attachment is Extract<ComposerAttachment, { kind: "vault-file" }> => attachment.kind === "vault-file")
+    .slice(0, MAX_FILE_ATTACHMENTS)
+    .map((attachment) => ({
+      path: attachment.path,
+      content: (attachment.content ?? "").slice(0, FILE_ATTACHMENT_CHAR_LIMIT).trim()
+    }))
+    .filter((attachment) => attachment.content.length > 0);
+
+  if (!fileAttachments || fileAttachments.length === 0) {
+    return "";
+  }
+
+  return [
+    "Referenced files:",
+    ...fileAttachments.map((attachment) => `- path: ${attachment.path}\n  content:\n${attachment.content}`)
+  ].join("\n");
+}
+
+function buildAttachedImagesSection(attachments: ReadonlyArray<ComposerAttachment> | undefined): string {
+  const imageAttachments = attachments?.filter(
+    (attachment): attachment is Extract<ComposerAttachment, { kind: "pasted-image" }> => attachment.kind === "pasted-image"
+  );
+
+  if (!imageAttachments || imageAttachments.length === 0) {
+    return "";
+  }
+
+  return [
+    "Attached images:",
+    "If attached images are relevant, inspect them directly from the provided local paths.",
+    ...imageAttachments.map((attachment) => {
+      const dimensions =
+        typeof attachment.width === "number" && typeof attachment.height === "number"
+          ? `${attachment.width}x${attachment.height}`
+          : "unknown";
+
+      return [
+        `- path: ${attachment.path}`,
+        `  mime: ${attachment.mimeType}`,
+        `  size: ${attachment.sizeBytes} bytes`,
+        `  dimensions: ${dimensions}`
+      ].join("\n");
+    })
+  ].join("\n");
 }
 
 function formatSaveDirectory(path: string): string {
@@ -64,8 +119,18 @@ export function buildContextPayload(input: ContextInput): string {
   }
 
   const excerpt = buildNoteExcerpt(input);
-  if (excerpt && input.activeNotePath) {
+  if (excerpt && input.activeNotePath && !isNotePathExplicitlyAttached(input.attachments ?? [], input.activeNotePath)) {
     sections.push(`Active note (${input.activeNotePath}):\n${excerpt}`);
+  }
+
+  const referencedFiles = buildReferencedFileAttachments(input.attachments);
+  if (referencedFiles) {
+    sections.push(referencedFiles);
+  }
+
+  const attachedImages = buildAttachedImagesSection(input.attachments);
+  if (attachedImages) {
+    sections.push(attachedImages);
   }
 
   if (input.saveTargetPlan) {
@@ -77,10 +142,18 @@ export function buildContextPayload(input: ContextInput): string {
 
 export function measureLocalContextUsage(input: ContextInput): { used: number; limit: number } {
   const selectionLength = input.selectionText?.length ?? 0;
-  const noteExcerptLength = buildNoteExcerpt(input).length;
+  const visibleFileAttachments = (input.attachments ?? [])
+    .filter((attachment): attachment is Extract<ComposerAttachment, { kind: "vault-file" }> => attachment.kind === "vault-file")
+    .slice(0, MAX_FILE_ATTACHMENTS);
+  const noteExcerptLength =
+    input.activeNotePath && isNotePathExplicitlyAttached(input.attachments ?? [], input.activeNotePath)
+      ? 0
+      : buildNoteExcerpt(input).length;
+  const fileAttachmentLength = visibleFileAttachments
+    .reduce((total, attachment) => total + (attachment.content ?? "").slice(0, FILE_ATTACHMENT_CHAR_LIMIT).trim().length, 0);
 
   return {
-    used: selectionLength + noteExcerptLength,
-    limit: NOTE_CHAR_LIMIT
+    used: selectionLength + noteExcerptLength + fileAttachmentLength,
+    limit: NOTE_CHAR_LIMIT + FILE_ATTACHMENT_CHAR_LIMIT * visibleFileAttachments.length
   };
 }

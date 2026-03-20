@@ -4,6 +4,21 @@
 
 适合已经在本机使用 Codex CLI，希望在 Obsidian 里直接进行问答、分析、写作和本地协作的用户。
 
+## 当前能力
+
+- 侧边栏内的 Codex 对话与流式响应
+- 当前笔记与当前选中文本的上下文注入
+- 在输入框里通过 `@` 显式附加 Vault 内 Markdown 文件
+- 在输入框里直接粘贴图片作为本轮附件
+
+当前附件能力的边界：
+
+- `@引用` 只支持当前 Vault 内 Markdown 文件
+- 单轮最多附加 5 个文件引用
+- 图片只支持粘贴，不支持拖拽、外链和外部目录
+- 单轮最多附加 3 张图片
+- 粘贴图片会先写入 `.obsidian/plugins/obsidian-codex/.cache/pasted-images/`
+
 ## 运行要求
 
 - Obsidian Desktop `>= 1.5.0`

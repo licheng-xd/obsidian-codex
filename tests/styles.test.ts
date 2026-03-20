@@ -78,4 +78,29 @@ describe("styles", () => {
       /\.obsidian-codex-brand-icon\s*\{[^}]*color:\s*var\(--obsidian-codex-reasoning\);/s
     );
   });
+
+  it("styles the mention dropdown and keeps selected items on the green token", () => {
+    const stylesheet = readFileSync(resolve(__dirname, "../styles.css"), "utf8");
+
+    expect(stylesheet).toMatch(
+      /\.obsidian-codex-mention-dropdown\s*\{[^}]*background:\s*var\(--obsidian-codex-popover-bg\);[^}]*border:\s*1px solid var\(--obsidian-codex-popover-border\);/s
+    );
+    expect(stylesheet).toMatch(
+      /\.obsidian-codex-mention-item\.is-selected,\s*\.obsidian-codex-mention-item:hover\s*\{[^}]*color:\s*var\(--obsidian-codex-reasoning\);/s
+    );
+  });
+
+  it("styles attachment chips for file and image attachments", () => {
+    const stylesheet = readFileSync(resolve(__dirname, "../styles.css"), "utf8");
+
+    expect(stylesheet).toMatch(
+      /\.obsidian-codex-attachment-strip\s*\{[^}]*display:\s*flex;[^}]*flex-wrap:\s*wrap;/s
+    );
+    expect(stylesheet).toMatch(
+      /\.obsidian-codex-attachment-chip\s*\{[^}]*border:\s*1px solid var\(--obsidian-codex-accent-outline\);/s
+    );
+    expect(stylesheet).toMatch(
+      /\.obsidian-codex-attachment-chip\.is-image\s*\{[^}]*background:\s*var\(--obsidian-codex-highlight-soft\);/s
+    );
+  });
 });
