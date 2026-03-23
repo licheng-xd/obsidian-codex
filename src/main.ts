@@ -23,7 +23,7 @@ export default class ObsidianCodexPlugin extends Plugin {
 
     this.addSettingTab(new ObsidianCodexSettingTab(this.app, this));
     this.registerView(CODEX_CHAT_VIEW_TYPE, (leaf) => new ChatView(leaf, this));
-    this.addRibbonIcon(CODEX_ICON, "Open Codexian", () => {
+    this.addRibbonIcon(CODEX_ICON, "Open sidebar", () => {
       void this.activateChatView();
     });
 

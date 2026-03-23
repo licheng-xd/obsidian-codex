@@ -273,7 +273,7 @@ export class ChatView extends ItemView {
     this.inputEl = inputShellEl.createEl("textarea", {
       cls: "obsidian-codex-input"
     });
-    this.inputEl.placeholder = "How can I help you today?";
+    this.inputEl.placeholder = "Type a prompt";
     this.inputEl.rows = 4;
 
     this.registerDomEvent(this.inputEl, "focus", () => void this.updateContextSummary());

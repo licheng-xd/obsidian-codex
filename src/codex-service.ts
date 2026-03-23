@@ -108,7 +108,7 @@ export async function probeCodexCli(command = "codex"): Promise<string> {
       try {
         resolve(finalizeCodexProbeResult(code, output, error));
       } catch (probeError) {
-        reject(probeError);
+        reject(probeError instanceof Error ? probeError : new Error(String(probeError)));
       }
     });
   });

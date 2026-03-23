@@ -12,6 +12,13 @@ describe("main source", () => {
     expect(source).not.toContain('id: "codexian-verify-runtime"');
   });
 
+  it("uses a generic sentence-case ribbon tooltip", () => {
+    const source = readFileSync(resolve(__dirname, "../src/main.ts"), "utf8");
+
+    expect(source).toContain('this.addRibbonIcon(CODEX_ICON, "Open sidebar", () => {');
+    expect(source).not.toContain('this.addRibbonIcon(CODEX_ICON, "Open Codexian", () => {');
+  });
+
   it("does not detach chat leaves during plugin unload", () => {
     const source = readFileSync(resolve(__dirname, "../src/main.ts"), "utf8");
 

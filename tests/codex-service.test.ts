@@ -1,6 +1,8 @@
 import { chmodSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 import {
   CodexService,
@@ -67,6 +69,13 @@ describe("finalizeCodexProbeResult", () => {
 describe("probeCodexCli", () => {
   it("rejects spawn failures with an Error instance", async () => {
     await expect(probeCodexCli("/path/that/does/not/exist/codex")).rejects.toBeInstanceOf(Error);
+  });
+
+  it("normalizes finalizeCodexProbeResult failures to Error instances before rejecting", () => {
+    const source = readFileSync(resolve(__dirname, "../src/codex-service.ts"), "utf8");
+
+    expect(source).toContain("reject(probeError instanceof Error ? probeError : new Error(String(probeError)));");
+    expect(source).not.toContain("reject(probeError);");
   });
 });
 

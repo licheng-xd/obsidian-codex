@@ -25,7 +25,7 @@ export class ObsidianCodexSettingTab extends PluginSettingTab {
       .setDesc("Optional absolute path to the codex executable. Leave empty to use the shell path.")
       .addText((text) => {
         text
-          .setPlaceholder("codex")
+          .setPlaceholder("Codex")
           .setValue(this.plugin.settings.codexPath)
           .onChange(async (value) => {
             await this.savePatchedSettings({ codexPath: value });
@@ -58,8 +58,8 @@ export class ObsidianCodexSettingTab extends PluginSettingTab {
       });
 
     new Setting(containerEl)
-      .setName("Skip git repo check")
-      .setDesc("Allow codex to run inside a vault even when it is not a git repository.")
+      .setName("Skip repository check")
+      .setDesc("Allow the plugin to run inside a vault even when the vault is not a repository.")
       .addToggle((toggle) => {
         toggle.setValue(this.plugin.settings.skipGitRepoCheck).onChange(async (value) => {
           await this.savePatchedSettings({ skipGitRepoCheck: value });
@@ -93,9 +93,9 @@ export class ObsidianCodexSettingTab extends PluginSettingTab {
       .setDesc("Default sandbox mode for future thread execution.")
       .addDropdown((dropdown) => {
         dropdown
-          .addOption("read-only", "read-only")
-          .addOption("workspace-write", "workspace-write")
-          .addOption("danger-full-access", "danger-full-access")
+          .addOption("read-only", "Read-only")
+          .addOption("workspace-write", "Workspace write")
+          .addOption("danger-full-access", "Full access")
           .setValue(this.plugin.settings.sandboxMode)
           .onChange(async (value) => {
             this.plugin.settings = updateExecutionSettings(this.plugin.settings, {
@@ -111,9 +111,9 @@ export class ObsidianCodexSettingTab extends PluginSettingTab {
       .setDesc("Default approval policy for future thread execution.")
       .addDropdown((dropdown) => {
         dropdown
-          .addOption("never", "never")
-          .addOption("on-request", "on-request")
-          .addOption("on-failure", "on-failure")
+          .addOption("never", "Never")
+          .addOption("on-request", "On request")
+          .addOption("on-failure", "On failure")
           .setValue(this.plugin.settings.approvalPolicy)
           .onChange(async (value) => {
             this.plugin.settings = updateExecutionSettings(this.plugin.settings, {

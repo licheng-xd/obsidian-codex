@@ -36,6 +36,13 @@ describe("chat-view history markup", () => {
     expect(source).toContain('this.attachmentStripEl = inputShellEl.createDiv({ cls: "obsidian-codex-attachment-strip" });');
   });
 
+  it("uses the simplified sentence-case placeholder text", () => {
+    const source = readFileSync(resolve(__dirname, "../src/chat-view.ts"), "utf8");
+
+    expect(source).toContain('this.inputEl.placeholder = "Type a prompt";');
+    expect(source).not.toContain('this.inputEl.placeholder = "How can I help you today?";');
+  });
+
   it("clears the composer immediately after send while preserving attachment cleanup hooks", () => {
     const source = readFileSync(resolve(__dirname, "../src/chat-view.ts"), "utf8");
 
