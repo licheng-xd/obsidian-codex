@@ -1,7 +1,7 @@
 {
   "id": "codexian",
   "name": "Codexian",
-	"version": "0.1.3",
+	"version": "0.1.4",
   "minAppVersion": "1.5.0",
   "description": "OpenAI Codex sidebar for your vault.",
   "author": "licheng",
