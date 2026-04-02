@@ -1167,6 +1167,31 @@
   white-space: nowrap;
 }
 
+.obsidian-codex-statusbar-meta.is-execution {
+  align-items: center;
+  gap: 4px;
+}
+
+.obsidian-codex-statusbar-meta.is-execution::before {
+  background: currentColor;
+  border-radius: 999px;
+  content: "";
+  display: inline-flex;
+  flex: 0 0 auto;
+  height: 5px;
+  opacity: 0.45;
+  width: 5px;
+}
+
+.obsidian-codex-statusbar-meta.is-execution.is-running {
+  color: var(--obsidian-codex-reasoning);
+}
+
+.obsidian-codex-statusbar-meta.is-execution.is-running::before {
+  animation: obsidian-codex-fade-pulse 1.1s ease-in-out infinite;
+  opacity: 1;
+}
+
 .obsidian-codex-statusbar-meta.is-vault {
   color: var(--obsidian-codex-vault-meta);
 }

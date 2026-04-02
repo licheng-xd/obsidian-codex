@@ -53,6 +53,13 @@ describe("chat-view history markup", () => {
     expect(source).toContain("this.cleanupAttachmentFiles(draftAttachments);");
   });
 
+  it("keeps the assistant turn live while work is still running and mirrors that state in the status bar", () => {
+    const source = readFileSync(resolve(__dirname, "../src/chat-view.ts"), "utf8");
+
+    expect(source).toContain("this.statusBar?.updateExecutionState(isSending);");
+    expect(source).toContain('turn.metaLabelEl.textContent = phase === "working" ? "Working" : "Thinking";');
+  });
+
   it("keeps onClose synchronous while returning a resolved promise for the view lifecycle", () => {
     const source = readFileSync(resolve(__dirname, "../src/chat-view.ts"), "utf8");
 

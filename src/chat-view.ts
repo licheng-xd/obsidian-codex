@@ -97,6 +97,8 @@ interface AssistantTurnElements {
   metaFinalized: boolean;
 }
 
+type LiveAssistantTurnPhase = "thinking" | "working";
+
 type VisibleAssistantEvent =
   | MappedTextEvent
   | MappedReasoningEvent
@@ -495,6 +497,18 @@ export class ChatView extends ItemView {
       ? `Interrupted after ${elapsedSeconds}s`
       : `Thought for ${elapsedSeconds}s`;
     turn.metaSignalEl.remove();
+  }
+
+  private updateAssistantTurnLiveState(
+    turn: AssistantTurnElements,
+    phase: LiveAssistantTurnPhase
+  ): void {
+    if (turn.metaFinalized) {
+      return;
+    }
+
+    turn.metaEl.classList.add("is-live");
+    turn.metaLabelEl.textContent = phase === "working" ? "Working" : "Thinking";
   }
 
   private removeAssistantTurnIfEmpty(turn: AssistantTurnElements): void {
@@ -1115,6 +1129,7 @@ export class ChatView extends ItemView {
 
   private setSendingState(isSending: boolean): void {
     this.isSending = isSending;
+    this.statusBar?.updateExecutionState(isSending);
     this.updateComposerState();
   }
 
@@ -1291,6 +1306,7 @@ export class ChatView extends ItemView {
         }
 
         if (mapped.type === "reasoning") {
+          this.updateAssistantTurnLiveState(assistantTurn, "thinking");
           latestSystemEvents.set(mapped.itemId, mapped);
           turnGeneratedChars += trackEventChars(mapped.itemId, estimateMappedEventChars(mapped));
           sawVisibleAssistantEvent = true;
@@ -1310,8 +1326,8 @@ export class ChatView extends ItemView {
           throw new Error(mapped.message);
         }
 
+        this.updateAssistantTurnLiveState(assistantTurn, "working");
         if (!sawVisibleAssistantEvent) {
-          this.finalizeAssistantTurnMeta(assistantTurn);
           sawVisibleAssistantEvent = true;
         }
 

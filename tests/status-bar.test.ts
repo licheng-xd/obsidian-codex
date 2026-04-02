@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { MODEL_OPTIONS, type ContextUsage } from "../src/types";
 import {
+  formatExecutionStateLabel,
   formatContextWindowTitle,
   formatContextWindowUsage,
   formatLastTurnUsage,
@@ -101,6 +102,11 @@ describe("status-bar helpers", () => {
 
   it("shows pending state when usage is unavailable", () => {
     expect(formatLastTurnUsage(null, null, null)).toBe("Last turn: pending");
+  });
+
+  it("formats the execution state label", () => {
+    expect(formatExecutionStateLabel(false)).toBe("Ready");
+    expect(formatExecutionStateLabel(true)).toBe("Running");
   });
 
   it("maps model ids to official client labels", () => {

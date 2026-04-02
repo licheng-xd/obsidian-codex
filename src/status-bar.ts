@@ -82,6 +82,10 @@ export function formatLastTurnUsage(
   return `Last turn: in ${formatCompactCount(input)} / cached ${formatCompactCount(cached)} / out ${formatCompactCount(output)}`;
 }
 
+export function formatExecutionStateLabel(isRunning: boolean): string {
+  return isRunning ? "Running" : "Ready";
+}
+
 export function getModelSelectLabel(model: string): string {
   return MODEL_OPTIONS.find((option) => option.id === model)?.label ?? model;
 }
@@ -117,12 +121,14 @@ export class StatusBar {
   private readonly reasoningGroupEl: HTMLDivElement;
   private readonly reasoningTriggerEl: HTMLSpanElement;
   private readonly reasoningMenuEl: HTMLDivElement;
+  private readonly executionStateEl: HTMLDivElement;
   private readonly localUsageEl: HTMLDivElement;
   private readonly workingDirectoryEl: HTMLDivElement;
   private readonly yoloLabelEl: HTMLSpanElement;
   private readonly yoloToggleEl: HTMLButtonElement;
   private currentModel: string;
   private currentReasoningEffort: ReasoningEffort;
+  private isRunning = false;
   private currentContextUsage: ContextUsage = {
     localCharsUsed: 0,
     localCharsLimit: 4000,
@@ -161,6 +167,9 @@ export class StatusBar {
     this.localUsageEl = containerEl.ownerDocument.createElement("div");
     this.localUsageEl.className = "obsidian-codex-statusbar-meta";
 
+    this.executionStateEl = containerEl.ownerDocument.createElement("div");
+    this.executionStateEl.className = "obsidian-codex-statusbar-meta is-execution";
+
     this.workingDirectoryEl = containerEl.ownerDocument.createElement("div");
     this.workingDirectoryEl.className = "obsidian-codex-statusbar-meta is-vault";
 
@@ -182,6 +191,7 @@ export class StatusBar {
     this.primaryEl.append(
       this.modelGroupEl,
       this.reasoningGroupEl,
+      this.executionStateEl,
       this.localUsageEl,
       this.workingDirectoryEl
     );
@@ -194,6 +204,7 @@ export class StatusBar {
     this.updateContextUsage(this.currentContextUsage);
     this.updateModel(initialModel);
     this.updateReasoningEffort(initialReasoningEffort);
+    this.updateExecutionState(false);
     this.updateYolo(initialYolo);
     this.updateWorkingDirectory();
   }
@@ -218,6 +229,16 @@ export class StatusBar {
     this.currentReasoningEffort = effort;
     this.reasoningTriggerEl.textContent = getReasoningEffortLabel(effort);
     this.rebuildReasoningMenu();
+  }
+
+  updateExecutionState(isRunning: boolean): void {
+    this.isRunning = isRunning;
+    this.executionStateEl.textContent = formatExecutionStateLabel(isRunning);
+    this.executionStateEl.title = isRunning
+      ? "Codex is still executing the current turn."
+      : "No turn is running.";
+    this.executionStateEl.classList.toggle("is-running", isRunning);
+    this.rootEl.classList.toggle("is-running", isRunning);
   }
 
   updateYolo(enabled: boolean): void {
