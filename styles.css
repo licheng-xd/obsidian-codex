@@ -220,6 +220,58 @@
   width: min(100%, 820px);
 }
 
+.obsidian-codex-inline-edit-modal-copy {
+  color: var(--text-muted);
+  margin: 0 0 12px;
+}
+
+.obsidian-codex-inline-edit-textarea {
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 10px;
+  color: var(--text-normal);
+  min-height: 120px;
+  padding: 12px;
+  resize: vertical;
+  width: 100%;
+}
+
+.obsidian-codex-inline-edit-review {
+  display: grid;
+  gap: 12px;
+  margin-top: 6px;
+}
+
+.obsidian-codex-inline-edit-section {
+  display: grid;
+  gap: 8px;
+}
+
+.obsidian-codex-inline-edit-heading {
+  font-size: 13px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.obsidian-codex-inline-edit-pre {
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 10px;
+  margin: 0;
+  max-height: 220px;
+  overflow: auto;
+  padding: 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.obsidian-codex-inline-edit-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-top: 14px;
+}
+
 .obsidian-codex-message {
   margin: 0 auto;
   white-space: pre-wrap;

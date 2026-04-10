@@ -9,6 +9,7 @@
 - 侧边栏内的 Codex 对话与流式响应
 - 单侧栏会话工作台：新会话、最近会话恢复、当前会话状态
 - 当前笔记与当前选中文本的上下文注入
+- 编辑器内 inline edit：选区改写、光标处生成/插入，应用前显式确认
 - 在输入框里通过 `@` 显式附加 Vault 内 Markdown 文件
 - 在输入框里直接粘贴图片作为本轮附件
 
@@ -21,6 +22,8 @@
 - 粘贴图片会先写入 Vault 配置目录下的 `plugins/codexian/.cache/pasted-images/`
 - 当前仍然是单侧栏模型，不支持多 tab
 - `New session` 只重置当前会话，不会清空最近会话列表
+- inline edit 当前只支持单选区或单光标，不支持多段批量编辑
+- inline edit 结果在应用前会先预览；如果等待期间文档已变化，需要重新运行
 
 ## 运行要求
 
@@ -83,6 +86,15 @@
 3. 如果插件找不到 `codex`，把 `command -v codex` 返回的绝对路径填进设置里的 `Codex path`
 4. 按需设置 `Model` 和 `Reasoning effort`
 5. 只有在你完全信任当前 Vault 和本机环境时，再开启 `YOLO mode`
+
+## 常用命令
+
+- `Open sidebar`
+- `New session`
+- `Resume last session`
+- `Show session history`
+- `Inline edit selection`
+- `Inline insert at cursor`
 
 ## 常见问题
 

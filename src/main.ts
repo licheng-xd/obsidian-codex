@@ -4,6 +4,7 @@ import { ChatView, CODEX_CHAT_VIEW_TYPE } from "./chat-view";
 import { CODEX_ICON } from "./codex-icon";
 import { CodexService, probeCodexCli } from "./codex-service";
 import { registerCodexIcon } from "./icons";
+import { runInlineEditCommand } from "./inline-edit-controller";
 import { readPersistedPluginData, writePersistedPluginData } from "./plugin-state";
 import { type PluginSettings } from "./settings";
 import { ObsidianCodexSettingTab } from "./settings-tab";
@@ -73,6 +74,32 @@ export default class ObsidianCodexPlugin extends Plugin {
       callback: async () => {
         const view = await this.getOrCreateChatView();
         view?.openSessionWorkbench();
+      }
+    });
+
+    this.addCommand({
+      id: "inline-edit-selection",
+      name: "Inline edit selection",
+      editorCheckCallback: (checking) => {
+        if (checking) {
+          return true;
+        }
+
+        void runInlineEditCommand(this, "rewrite-selection");
+        return true;
+      }
+    });
+
+    this.addCommand({
+      id: "inline-insert-at-cursor",
+      name: "Inline insert at cursor",
+      editorCheckCallback: (checking) => {
+        if (checking) {
+          return true;
+        }
+
+        void runInlineEditCommand(this, "insert-at-cursor");
+        return true;
       }
     });
   }
