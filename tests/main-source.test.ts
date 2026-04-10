@@ -8,6 +8,9 @@ describe("main source", () => {
 
     expect(source).toContain('id: "open-sidebar"');
     expect(source).toContain('id: "verify-runtime"');
+    expect(source).toContain('id: "new-session"');
+    expect(source).toContain('id: "resume-last-session"');
+    expect(source).toContain('id: "show-session-history"');
     expect(source).not.toContain('id: "codexian-open-sidebar"');
     expect(source).not.toContain('id: "codexian-verify-runtime"');
   });

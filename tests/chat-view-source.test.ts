@@ -11,12 +11,28 @@ describe("chat-view history markup", () => {
     expect(source).toContain('itemEl.tabIndex = 0;');
   });
 
+  it("upgrades the history popover into a session workbench with an explicit new-session action", () => {
+    const source = readFileSync(resolve(__dirname, "../src/chat-view.ts"), "utf8");
+
+    expect(source).toContain('this.historyActionsEl = this.historyPopoverEl.createDiv({ cls: "obsidian-codex-history-actions" });');
+    expect(source).toContain('text: "New session"');
+    expect(source).toContain('this.historyStatusEl = this.historyPopoverEl.createDiv({ cls: "obsidian-codex-history-status" });');
+  });
+
   it("activates vault link opening after rendering assistant markdown", () => {
     const source = readFileSync(resolve(__dirname, "../src/chat-view.ts"), "utf8");
 
-    expect(source).toContain("this.activateRenderedAssistantLinks(responseEl, this.getMarkdownSourcePath());");
     expect(source).toContain("this.activateRenderedAssistantLinks(cardEl, this.getMarkdownSourcePath());");
     expect(source).toContain("this.app.workspace.openLinkText(linktext, linkSourcePath)");
+  });
+
+  it("delegates persisted session rendering to the dedicated renderer module", () => {
+    const source = readFileSync(resolve(__dirname, "../src/chat-view.ts"), "utf8");
+
+    expect(source).toContain('from "./chat-message-renderer"');
+    expect(source).toContain("renderPersistedSessionEntries(");
+    expect(source).not.toContain("private async renderPersistedAssistantTurn(");
+    expect(source).not.toContain("private renderPersistedSummaryItems(");
   });
 
   it("wires paste handling, mention updates, and attachment context into the composer", () => {

@@ -18,12 +18,19 @@ import {
 } from "./chat-input";
 import { renderMarkdownMessage } from "./assistant-markdown";
 import type {
-  PersistedAssistantEntry,
   PersistedChatEntry,
   PersistedChatSession,
   PersistedSummaryItem
 } from "./chat-session";
-import { getSessionDisplayTitle, resolveSessionTitle, upsertRecentSession } from "./chat-session";
+import { getSessionDisplayTitle, resolveSessionTitle } from "./chat-session";
+import {
+  activateRecentSession,
+  createDraftWorkbenchState,
+  getLatestRecentSession,
+  persistWorkbenchSession,
+  type ChatWorkbenchState
+} from "./chat-workbench";
+import { renderPersistedSessionEntries } from "./chat-message-renderer";
 import {
   MAX_FILE_ATTACHMENTS,
   NOTE_CHAR_LIMIT,
@@ -146,6 +153,8 @@ export class ChatView extends ItemView {
   private attachmentStripEl!: HTMLDivElement;
   private historyButtonEl!: HTMLButtonElement;
   private historyPopoverEl!: HTMLDivElement;
+  private historyActionsEl!: HTMLDivElement;
+  private historyStatusEl!: HTMLDivElement;
   private historyListEl!: HTMLDivElement;
   private cancelButtonEl!: HTMLButtonElement;
   private newChatButtonEl!: HTMLButtonElement;
@@ -252,6 +261,14 @@ export class ChatView extends ItemView {
       "is-history"
     );
     this.historyPopoverEl = historyShellEl.createDiv({ cls: "obsidian-codex-history-popover" });
+    this.historyActionsEl = this.historyPopoverEl.createDiv({ cls: "obsidian-codex-history-actions" });
+    const historyNewSessionButtonEl = this.historyActionsEl.createEl("button", {
+      cls: "obsidian-codex-history-action",
+      text: "New session"
+    });
+    historyNewSessionButtonEl.type = "button";
+    historyNewSessionButtonEl.addEventListener("click", () => this.startDraftSession());
+    this.historyStatusEl = this.historyPopoverEl.createDiv({ cls: "obsidian-codex-history-status" });
     this.historyListEl = this.historyPopoverEl.createDiv({ cls: "obsidian-codex-history-list" });
     this.newChatButtonEl = this.createTrayActionButton(
       stageActionsEl,
@@ -405,7 +422,12 @@ export class ChatView extends ItemView {
     this.historyPopoverEl.classList.toggle("is-open", isOpen);
   }
 
+  openSessionWorkbench(): void {
+    this.setHistoryPopoverOpen(true);
+  }
+
   private renderHistorySessionList(): void {
+    this.updateHistoryWorkbenchState();
     this.historyListEl.replaceChildren();
 
     if (this.recentSessions.length === 0) {
@@ -446,6 +468,16 @@ export class ChatView extends ItemView {
         }
       });
     }
+  }
+
+  private updateHistoryWorkbenchState(): void {
+    const activeSession = this.activeSessionId
+      ? this.recentSessions.find((session) => session.threadId === this.activeSessionId)
+      : null;
+    const statusText = activeSession
+      ? `Current session: ${getSessionDisplayTitle(activeSession)}`
+      : "Current session: New draft";
+    this.historyStatusEl.setText(statusText);
   }
 
   private formatHistoryTimestamp(updatedAt: number): string {
@@ -893,10 +925,24 @@ export class ChatView extends ItemView {
     this.messagesEl.scrollTop = this.messagesEl.scrollHeight;
   }
 
+  startDraftSession(): void {
+    this.resetConversation();
+  }
+
+  async resumeLatestSession(): Promise<void> {
+    const latestSession = getLatestRecentSession(this.recentSessions);
+    if (!latestSession) {
+      new Notice("No recent sessions yet.", 4000);
+      return;
+    }
+
+    await this.activatePersistedSession(latestSession.threadId);
+  }
+
   private resetConversation(): void {
     this.plugin.codexService.clearThread();
-    this.activeSessionId = null;
-    this.activeThreadId = null;
+    const draftState = createDraftWorkbenchState(this.recentSessions);
+    this.applyWorkbenchState(draftState);
     this.sessionEntries = [];
     this.sessionStarted = false;
     this.wasCancelled = false;
@@ -916,7 +962,7 @@ export class ChatView extends ItemView {
     this.refreshCanvasState();
     this.setHistoryPopoverOpen(false);
     this.renderHistorySessionList();
-    void this.plugin.setActiveSession(null);
+    void this.plugin.setActiveSession(draftState.activeSessionId);
     void this.updateContextSummary();
   }
 
@@ -938,42 +984,6 @@ export class ChatView extends ItemView {
     return messageEl;
   }
 
-  private async renderPersistedAssistantTurn(entry: PersistedAssistantEntry): Promise<void> {
-    const turn = this.createAssistantTurn();
-    turn.metaFinalized = true;
-    turn.metaEl.classList.remove("is-live");
-    turn.metaLabelEl.textContent = entry.metaLabel;
-    turn.metaSignalEl.remove();
-    const responseEl = turn.contentEl.createDiv({ cls: "obsidian-codex-response markdown-rendered" });
-    await renderMarkdownMessage(
-      responseEl,
-      entry.contentMarkdown,
-      this.getMarkdownSourcePath(),
-      (markdown, scratchEl, sourcePath) =>
-        MarkdownRenderer.render(this.app, markdown, scratchEl, sourcePath, this)
-    );
-    this.activateRenderedAssistantLinks(responseEl, this.getMarkdownSourcePath());
-    this.renderPersistedSummaryItems(turn.eventsEl, entry.summaries);
-    this.refreshCanvasState();
-    this.scrollMessagesToBottom();
-  }
-
-  private renderPersistedSummaryItems(
-    containerEl: HTMLElement,
-    summaries: ReadonlyArray<PersistedSummaryItem>
-  ): void {
-    for (const [index, summary] of summaries.entries()) {
-      const event: MappedSummaryEvent = {
-        type: "summary",
-        itemId: `persisted-summary-${index}`,
-        label: summary.label,
-        preview: summary.preview,
-        lines: summary.lines
-      };
-      renderEventCard(containerEl, event);
-    }
-  }
-
   private async renderPersistedSession(session: PersistedChatSession): Promise<void> {
     this.messagesEl.empty();
     this.sessionEntries = [...session.entries];
@@ -987,26 +997,40 @@ export class ChatView extends ItemView {
       sdkOutputTokens: session.contextUsage.sdkOutputTokens
     };
     this.statusBar?.updateContextUsage(this.contextUsage);
-
-    for (const entry of session.entries) {
-      if (entry.type === "assistant") {
-        await this.renderPersistedAssistantTurn(entry);
-      } else {
+    await renderPersistedSessionEntries(session.entries, {
+      createAssistantTurn: () => this.createAssistantTurn(),
+      renderMarkdown: async (containerEl, markdown) => {
+        await renderMarkdownMessage(
+          containerEl,
+          markdown,
+          this.getMarkdownSourcePath(),
+          (value, scratchEl, sourcePath) =>
+            MarkdownRenderer.render(this.app, value, scratchEl, sourcePath, this)
+        );
+      },
+      activateLinks: (containerEl) => {
+        this.activateRenderedAssistantLinks(containerEl, this.getMarkdownSourcePath());
+      },
+      appendMessage: (entry) => {
         this.appendMessage(entry.type, entry.text, false);
-      }
-    }
-
-    this.refreshCanvasState();
+      },
+      refreshCanvasState: () => this.refreshCanvasState(),
+      scrollMessagesToBottom: () => this.scrollMessagesToBottom()
+    });
   }
 
   private async restoreActiveSession(): Promise<void> {
-    const session = this.activeSessionId
-      ? this.recentSessions.find((item) => item.threadId === this.activeSessionId)
-      : null;
+    const currentState = this.getWorkbenchState();
+    const activationState =
+      currentState.activeSessionId
+        ? activateRecentSession(currentState, currentState.activeSessionId)
+        : { ...currentState, selectedSession: null };
+    const session = activationState.selectedSession;
     if (!session) {
       return;
     }
 
+    this.applyWorkbenchState(activationState);
     await this.renderPersistedSession(session);
 
     const threadOptions = this.buildThreadOptions();
@@ -1021,9 +1045,8 @@ export class ChatView extends ItemView {
       return;
     }
 
-    this.activeSessionId = this.activeThreadId;
     const existingSession = this.recentSessions.find((session) => session.threadId === this.activeThreadId);
-    this.recentSessions = upsertRecentSession(this.recentSessions, {
+    const nextSession: PersistedChatSession = {
       threadId: this.activeThreadId,
       title: resolveSessionTitle(this.sessionEntries, existingSession?.title),
       updatedAt: Date.now(),
@@ -1034,7 +1057,8 @@ export class ChatView extends ItemView {
         sdkCachedInputTokens: this.contextUsage.sdkCachedInputTokens,
         sdkOutputTokens: this.contextUsage.sdkOutputTokens
       }
-    });
+    };
+    this.applyWorkbenchState(persistWorkbenchSession(this.getWorkbenchState(), nextSession));
     this.renderHistorySessionList();
     await this.plugin.saveSessionHistory(this.recentSessions, this.activeSessionId);
   }
@@ -1045,7 +1069,8 @@ export class ChatView extends ItemView {
       return;
     }
 
-    const session = this.recentSessions.find((item) => item.threadId === threadId);
+    const activationState = activateRecentSession(this.getWorkbenchState(), threadId);
+    const session = activationState.selectedSession;
     if (!session) {
       return;
     }
@@ -1053,9 +1078,10 @@ export class ChatView extends ItemView {
     this.plugin.codexService.clearThread();
     this.wasCancelled = false;
     this.sessionStarted = false;
+    this.applyWorkbenchState(activationState);
     await this.renderPersistedSession(session);
     const updatedSession = { ...session, updatedAt: Date.now() };
-    this.recentSessions = upsertRecentSession(this.recentSessions, updatedSession);
+    this.applyWorkbenchState(persistWorkbenchSession(this.getWorkbenchState(), updatedSession));
     this.renderHistorySessionList();
     await this.plugin.saveSessionHistory(this.recentSessions, threadId);
 
@@ -1066,6 +1092,21 @@ export class ChatView extends ItemView {
     }
 
     this.setHistoryPopoverOpen(false);
+  }
+
+  private getWorkbenchState(): ChatWorkbenchState {
+    return {
+      recentSessions: [...this.recentSessions],
+      activeSessionId: this.activeSessionId,
+      activeThreadId: this.activeThreadId,
+      isDraftSession: this.activeSessionId === null && this.activeThreadId === null
+    };
+  }
+
+  private applyWorkbenchState(state: ChatWorkbenchState): void {
+    this.recentSessions = [...state.recentSessions];
+    this.activeSessionId = state.activeSessionId;
+    this.activeThreadId = state.activeThreadId;
   }
 
   private snapshotSummaryItems(

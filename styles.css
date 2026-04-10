@@ -711,6 +711,36 @@
   display: block;
 }
 
+.obsidian-codex-history-actions {
+  align-items: center;
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 8px;
+}
+
+.obsidian-codex-history-action {
+  background: var(--interactive-normal);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 10px;
+  color: var(--text-normal);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 6px 10px;
+}
+
+.obsidian-codex-history-action:hover {
+  background: var(--interactive-hover);
+}
+
+.obsidian-codex-history-status {
+  color: var(--obsidian-codex-soft);
+  font-size: 11px;
+  line-height: 1.4;
+  margin-bottom: 8px;
+  padding: 0 4px;
+}
+
 .obsidian-codex-history-list {
   display: flex;
   flex-direction: column;

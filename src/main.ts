@@ -48,6 +48,33 @@ export default class ObsidianCodexPlugin extends Plugin {
         }
       }
     });
+
+    this.addCommand({
+      id: "new-session",
+      name: "New session",
+      callback: async () => {
+        const view = await this.getOrCreateChatView();
+        view?.startDraftSession();
+      }
+    });
+
+    this.addCommand({
+      id: "resume-last-session",
+      name: "Resume last session",
+      callback: async () => {
+        const view = await this.getOrCreateChatView();
+        await view?.resumeLatestSession();
+      }
+    });
+
+    this.addCommand({
+      id: "show-session-history",
+      name: "Show session history",
+      callback: async () => {
+        const view = await this.getOrCreateChatView();
+        view?.openSessionWorkbench();
+      }
+    });
   }
 
   async loadSettings(): Promise<void> {
@@ -77,6 +104,10 @@ export default class ObsidianCodexPlugin extends Plugin {
   }
 
   private async activateChatView(): Promise<void> {
+    await this.getOrCreateChatView();
+  }
+
+  private async getOrCreateChatView(): Promise<ChatView | null> {
     let leaf = this.app.workspace.getLeavesOfType(CODEX_CHAT_VIEW_TYPE)[0];
 
     if (!leaf) {
@@ -91,6 +122,7 @@ export default class ObsidianCodexPlugin extends Plugin {
     }
 
     await this.app.workspace.revealLeaf(leaf);
+    return leaf.view instanceof ChatView ? leaf.view : null;
   }
 
   private async savePluginData(): Promise<void> {
