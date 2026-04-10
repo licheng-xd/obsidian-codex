@@ -3,6 +3,7 @@ import {
   deriveSessionTitle,
   getSessionDisplayTitle,
   resolveSessionTitle,
+  sanitizePersistedChatSession,
   upsertRecentSession,
   type PersistedChatSession
 } from "../src/chat-session";
@@ -23,7 +24,8 @@ function createSession(
       sdkInputTokens: null,
       sdkCachedInputTokens: null,
       sdkOutputTokens: null
-    }
+    },
+    persistentContextItems: []
   };
 }
 
@@ -194,9 +196,64 @@ describe("chat-session", () => {
         sdkInputTokens: null,
         sdkCachedInputTokens: null,
         sdkOutputTokens: null
-      }
+      },
+      persistentContextItems: []
     });
 
     expect(title).toBe("New chat");
+  });
+
+  it("defaults missing persistent context items to an empty array for legacy sessions", () => {
+    const session = sanitizePersistedChatSession({
+      threadId: "thread-legacy",
+      updatedAt: 10,
+      entries: [{ type: "user", text: "legacy" }],
+      contextUsage: {
+        threadCharsUsedEstimate: 0,
+        sdkInputTokens: null,
+        sdkCachedInputTokens: null,
+        sdkOutputTokens: null
+      }
+    });
+
+    expect(session).not.toBeNull();
+    expect(session?.persistentContextItems).toEqual([]);
+  });
+
+  it("filters invalid persistent context items while keeping valid vault files", () => {
+    const session = sanitizePersistedChatSession({
+      threadId: "thread-persistent-context",
+      updatedAt: 10,
+      entries: [{ type: "user", text: "context" }],
+      contextUsage: {
+        threadCharsUsedEstimate: 0,
+        sdkInputTokens: null,
+        sdkCachedInputTokens: null,
+        sdkOutputTokens: null
+      },
+      persistentContextItems: [
+        {
+          kind: "vault-file",
+          path: "notes/roadmap.md"
+        },
+        {
+          kind: "vault-file",
+          path: ""
+        },
+        {
+          kind: "external-file",
+          path: "/tmp/outside.md"
+        },
+        "invalid"
+      ]
+    });
+
+    expect(session).not.toBeNull();
+    expect(session?.persistentContextItems).toEqual([
+      {
+        kind: "vault-file",
+        path: "notes/roadmap.md"
+      }
+    ]);
   });
 });

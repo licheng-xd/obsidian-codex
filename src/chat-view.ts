@@ -20,6 +20,7 @@ import { renderMarkdownMessage } from "./assistant-markdown";
 import type {
   PersistedChatEntry,
   PersistedChatSession,
+  PersistentContextItem,
   PersistedSummaryItem
 } from "./chat-session";
 import { getSessionDisplayTitle, resolveSessionTitle } from "./chat-session";
@@ -61,6 +62,11 @@ import {
 import { enhanceRenderedAssistantLinks } from "./assistant-link-opener";
 import type ObsidianCodexPlugin from "./main";
 import { findActiveMentionQuery } from "./mention-query";
+import {
+  addPersistentContextItem,
+  clearPersistentContextItems as clearSessionPersistentContextItems,
+  removePersistentContextItem as removeSessionPersistentContextItem
+} from "./persistent-context";
 import { deletePastedImage, writePastedImage } from "./pasted-image-store";
 import { searchReferencePaths } from "./reference-search";
 import { DEFAULT_SETTINGS, patchPluginSettings, toggleYoloMode } from "./settings";
@@ -169,6 +175,7 @@ export class ChatView extends ItemView {
   private sessionStarted = false;
   private isSending = false;
   private wasCancelled = false;
+  private persistentContextItems: PersistentContextItem[] = [];
   private attachments: ComposerAttachment[] = [];
   private mentionState: MentionState | null = null;
   private attachmentIdCounter = 0;
@@ -195,6 +202,7 @@ export class ChatView extends ItemView {
         isSending: this.isSending,
         wasCancelled: this.wasCancelled,
         sessionEntries: [...this.sessionEntries],
+        persistentContextItems: [...this.persistentContextItems],
         contextUsage: this.contextUsage
       }),
       patchState: (patch) => {
@@ -218,6 +226,9 @@ export class ChatView extends ItemView {
         }
         if ("sessionEntries" in patch && patch.sessionEntries) {
           this.sessionEntries = [...patch.sessionEntries];
+        }
+        if ("persistentContextItems" in patch && patch.persistentContextItems) {
+          this.persistentContextItems = [...patch.persistentContextItems];
         }
         if ("contextUsage" in patch && patch.contextUsage) {
           this.contextUsage = patch.contextUsage;
@@ -407,6 +418,10 @@ export class ChatView extends ItemView {
 
       if (shouldSubmitFromKeydown(keyInput)) {
         event.preventDefault();
+        if (this.inputEl.value.trim() === "/clear-context") {
+          void this.handleClearContextSlashCommand();
+          return;
+        }
         void this.runtimeController.handleSend();
         return;
       }
@@ -500,6 +515,31 @@ export class ChatView extends ItemView {
 
   openSessionWorkbench(): void {
     this.setHistoryPopoverOpen(true);
+  }
+
+  async pinCurrentNote(): Promise<void> {
+    const file = this.app.workspace.getActiveFile();
+    if (!(file instanceof TFile) || file.extension.toLowerCase() !== "md") {
+      new Notice("No active Markdown note to pin.", 4000);
+      return;
+    }
+
+    const nextItems = addPersistentContextItem(this.persistentContextItems, {
+      kind: "vault-file",
+      path: file.path
+    });
+    const changed = nextItems.length !== this.persistentContextItems.length;
+    this.persistentContextItems = nextItems;
+    this.updateMentionState();
+    this.updateComposerState();
+    await this.runtimeController.persistActiveSession();
+    await this.updateContextSummary();
+    new Notice(
+      changed
+        ? "Pinned current note to session context."
+        : "Current note is already in session context.",
+      4000
+    );
   }
 
   private renderHistorySessionList(): void {
@@ -653,7 +693,10 @@ export class ChatView extends ItemView {
     const candidatePaths = searchReferencePaths(
       this.app.vault.getMarkdownFiles()
         .map((file) => file.path)
-        .filter((path) => !hasAttachmentPath(this.attachments, path)),
+        .filter((path) =>
+          !hasAttachmentPath(this.attachments, path) &&
+          !this.persistentContextItems.some((item) => item.path === path)
+        ),
       mentionMatch.query,
       {
         activeNotePath,
@@ -722,10 +765,10 @@ export class ChatView extends ItemView {
     }
 
     if (
-      countAttachmentsByKind(this.attachments)["vault-file"] >= MAX_FILE_ATTACHMENTS &&
-      !hasAttachmentPath(this.attachments, candidatePath)
+      this.persistentContextItems.length >= MAX_FILE_ATTACHMENTS &&
+      !this.persistentContextItems.some((item) => item.path === candidatePath)
     ) {
-      new Notice(`You can attach up to ${MAX_FILE_ATTACHMENTS} files per turn.`, 6000);
+      new Notice(`You can pin up to ${MAX_FILE_ATTACHMENTS} files in session context.`, 6000);
       return;
     }
 
@@ -738,13 +781,13 @@ export class ChatView extends ItemView {
     this.inputEl.value = nextValue.value;
     this.inputEl.selectionStart = nextValue.selectionStart;
     this.inputEl.selectionEnd = nextValue.selectionEnd;
-    this.attachments = addComposerAttachment(this.attachments, {
+    this.persistentContextItems = addPersistentContextItem(this.persistentContextItems, {
       kind: "vault-file",
-      id: this.createAttachmentId("ref"),
       path: candidatePath
     });
     this.mentionState = null;
     this.updateComposerState();
+    await this.runtimeController.persistActiveSession();
     await this.updateContextSummary();
     this.inputEl.focus();
   }
@@ -789,47 +832,101 @@ export class ChatView extends ItemView {
 
   private renderAttachmentStrip(): void {
     this.attachmentStripEl.replaceChildren();
-    this.attachmentStripEl.classList.toggle("is-empty", this.attachments.length === 0);
-    if (this.attachments.length === 0) {
+    const hasPersistentContext = this.persistentContextItems.length > 0;
+    const hasTurnAttachments = this.attachments.length > 0;
+    this.attachmentStripEl.classList.toggle("is-empty", !hasPersistentContext && !hasTurnAttachments);
+    if (!hasPersistentContext && !hasTurnAttachments) {
       return;
     }
 
-    for (const attachment of this.attachments) {
-      const chipEl = this.attachmentStripEl.createDiv({
-        cls: `obsidian-codex-attachment-chip${attachment.kind === "pasted-image" ? " is-image" : ""}`
-      });
-      const bodyEl = chipEl.createDiv({ cls: "obsidian-codex-attachment-body" });
-      bodyEl.createDiv({
-        cls: "obsidian-codex-attachment-label",
-        text: getAttachmentBasename(attachment.path)
+    if (hasPersistentContext) {
+      const sectionEl = this.attachmentStripEl.createDiv({ cls: "obsidian-codex-context-section is-session" });
+      sectionEl.createDiv({
+        cls: "obsidian-codex-context-heading",
+        text: "Session context"
       });
 
-      const metaText = attachment.kind === "vault-file"
-        ? attachment.path
-        : [
-            attachment.mimeType.replace("image/", "").toUpperCase(),
-            formatAttachmentSize(attachment.sizeBytes),
-            typeof attachment.width === "number" && typeof attachment.height === "number"
-              ? `${attachment.width}x${attachment.height}`
-              : null
-          ]
-            .filter((value): value is string => Boolean(value))
-            .join(" · ");
-      bodyEl.createDiv({
-        cls: "obsidian-codex-attachment-meta",
-        text: metaText
+      for (const item of this.persistentContextItems) {
+        const chipEl = sectionEl.createDiv({
+          cls: "obsidian-codex-attachment-chip"
+        });
+        const bodyEl = chipEl.createDiv({ cls: "obsidian-codex-attachment-body" });
+        bodyEl.createDiv({
+          cls: "obsidian-codex-attachment-label",
+          text: getAttachmentBasename(item.path)
+        });
+        bodyEl.createDiv({
+          cls: "obsidian-codex-attachment-meta",
+          text: item.path
+        });
+
+        const removeButtonEl = chipEl.createEl("button", {
+          cls: "obsidian-codex-attachment-remove",
+          text: "×"
+        });
+        removeButtonEl.type = "button";
+        removeButtonEl.ariaLabel = `Remove ${getAttachmentBasename(item.path)}`;
+        removeButtonEl.disabled = this.isSending;
+        removeButtonEl.addEventListener("click", () => {
+          void this.removePersistentContextItem(item.path);
+        });
+      }
+
+      const clearButtonEl = sectionEl.createEl("button", {
+        cls: "obsidian-codex-context-clear",
+        text: "Clear"
+      });
+      clearButtonEl.type = "button";
+      clearButtonEl.disabled = this.isSending;
+      clearButtonEl.addEventListener("click", () => {
+        void this.clearPersistentContext("Cleared session context.");
+      });
+    }
+
+    if (hasTurnAttachments) {
+      const sectionEl = this.attachmentStripEl.createDiv({ cls: "obsidian-codex-context-section is-turn" });
+      sectionEl.createDiv({
+        cls: "obsidian-codex-context-heading",
+        text: "This turn"
       });
 
-      const removeButtonEl = chipEl.createEl("button", {
-        cls: "obsidian-codex-attachment-remove",
-        text: "×"
-      });
-      removeButtonEl.type = "button";
-      removeButtonEl.ariaLabel = `Remove ${getAttachmentBasename(attachment.path)}`;
-      removeButtonEl.disabled = this.isSending;
-      removeButtonEl.addEventListener("click", () => {
-        void this.removeAttachment(attachment);
-      });
+      for (const attachment of this.attachments) {
+        const chipEl = sectionEl.createDiv({
+          cls: `obsidian-codex-attachment-chip${attachment.kind === "pasted-image" ? " is-image" : ""}`
+        });
+        const bodyEl = chipEl.createDiv({ cls: "obsidian-codex-attachment-body" });
+        bodyEl.createDiv({
+          cls: "obsidian-codex-attachment-label",
+          text: getAttachmentBasename(attachment.path)
+        });
+
+        const metaText = attachment.kind === "vault-file"
+          ? attachment.path
+          : [
+              attachment.mimeType.replace("image/", "").toUpperCase(),
+              formatAttachmentSize(attachment.sizeBytes),
+              typeof attachment.width === "number" && typeof attachment.height === "number"
+                ? `${attachment.width}x${attachment.height}`
+                : null
+            ]
+              .filter((value): value is string => Boolean(value))
+              .join(" · ");
+        bodyEl.createDiv({
+          cls: "obsidian-codex-attachment-meta",
+          text: metaText
+        });
+
+        const removeButtonEl = chipEl.createEl("button", {
+          cls: "obsidian-codex-attachment-remove",
+          text: "×"
+        });
+        removeButtonEl.type = "button";
+        removeButtonEl.ariaLabel = `Remove ${getAttachmentBasename(attachment.path)}`;
+        removeButtonEl.disabled = this.isSending;
+        removeButtonEl.addEventListener("click", () => {
+          void this.removeAttachment(attachment);
+        });
+      }
     }
   }
 
@@ -1040,6 +1137,7 @@ export class ChatView extends ItemView {
     const draftState = createDraftWorkbenchState(this.recentSessions);
     this.applyWorkbenchState(draftState);
     this.sessionEntries = [];
+    this.persistentContextItems = [];
     this.sessionStarted = false;
     this.wasCancelled = false;
     this.inputEl.value = "";
@@ -1113,6 +1211,9 @@ export class ChatView extends ItemView {
       refreshCanvasState: () => this.refreshCanvasState(),
       scrollMessagesToBottom: () => this.scrollMessagesToBottom()
     });
+    this.updateMentionState();
+    this.updateComposerState();
+    await this.updateContextSummary();
   }
 
   private getWorkbenchState(): ChatWorkbenchState {
@@ -1230,6 +1331,23 @@ export class ChatView extends ItemView {
     return resolvedAttachments;
   }
 
+  private async resolvePersistentContextItems(): Promise<ContextInput["persistentContextItems"]> {
+    const resolvedItems: NonNullable<ContextInput["persistentContextItems"]> = [];
+    for (const item of this.persistentContextItems) {
+      const file = this.app.vault.getAbstractFileByPath(item.path);
+      if (!(file instanceof TFile)) {
+        continue;
+      }
+
+      resolvedItems.push({
+        ...item,
+        content: await this.app.vault.cachedRead(file)
+      });
+    }
+
+    return resolvedItems;
+  }
+
   private async updateContextSummary(): Promise<void> {
     const context = await this.collectContext("");
     const localUsage = measureLocalContextUsage(context);
@@ -1245,7 +1363,7 @@ export class ChatView extends ItemView {
       vaultRootPath: this.getVaultRootPath(),
       activeNotePath: context.activeNotePath,
       selectionText: context.selectionText,
-      referencedFileCount: attachmentCounts["vault-file"],
+      referencedFileCount: (context.persistentContextItems?.length ?? 0) + attachmentCounts["vault-file"],
       imageAttachmentCount: attachmentCounts["pasted-image"]
     });
   }
@@ -1423,6 +1541,7 @@ export class ChatView extends ItemView {
     const file = markdownView?.file ?? this.app.workspace.getActiveFile() ?? undefined;
     const activeNotePath = file?.path;
     const saveTargetPlan = await this.buildSaveTargetPlan(userInput, activeNotePath);
+    const persistentContextItems = await this.resolvePersistentContextItems();
 
     if (markdownView?.editor && file) {
       const selectionText = markdownView.editor.getSelection() || undefined;
@@ -1431,6 +1550,7 @@ export class ChatView extends ItemView {
         activeNotePath: file.path,
         activeNoteContent: markdownView.editor.getValue(),
         selectionText,
+        persistentContextItems,
         attachments: await this.resolveContextAttachments(),
         saveTargetPlan
       };
@@ -1445,6 +1565,7 @@ export class ChatView extends ItemView {
         userInput,
         activeNotePath: file.path,
         activeNoteContent: await this.app.vault.cachedRead(file),
+        persistentContextItems,
         attachments: await this.resolveContextAttachments(),
         saveTargetPlan
       };
@@ -1456,8 +1577,35 @@ export class ChatView extends ItemView {
 
     return {
       userInput,
+      persistentContextItems,
       attachments: await this.resolveContextAttachments(),
       saveTargetPlan
     };
+  }
+
+  private async removePersistentContextItem(path: string): Promise<void> {
+    this.persistentContextItems = removeSessionPersistentContextItem(this.persistentContextItems, path);
+    this.updateMentionState();
+    this.updateComposerState();
+    await this.runtimeController.persistActiveSession();
+    await this.updateContextSummary();
+    this.inputEl.focus();
+  }
+
+  private async clearPersistentContext(feedback: string): Promise<void> {
+    this.persistentContextItems = clearSessionPersistentContextItems(this.persistentContextItems);
+    this.updateMentionState();
+    this.updateComposerState();
+    await this.runtimeController.persistActiveSession();
+    await this.updateContextSummary();
+    if (feedback) {
+      new Notice(feedback, 4000);
+    }
+    this.inputEl.focus();
+  }
+
+  private async handleClearContextSlashCommand(): Promise<void> {
+    await this.clearPersistentContext("Cleared session context.");
+    this.inputEl.value = "";
   }
 }

@@ -1050,12 +1050,53 @@
 
 .obsidian-codex-attachment-strip {
   display: flex;
+  flex-direction: column;
   flex-wrap: wrap;
   gap: 8px;
 }
 
 .obsidian-codex-attachment-strip.is-empty {
   display: none;
+}
+
+.obsidian-codex-context-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.obsidian-codex-context-heading {
+  color: var(--obsidian-codex-soft);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.obsidian-codex-context-clear {
+  align-self: flex-start;
+  background: transparent;
+  border: 1px solid var(--obsidian-codex-accent-outline);
+  border-radius: 999px;
+  color: var(--obsidian-codex-soft);
+  cursor: pointer;
+  font-size: 11px;
+  padding: 4px 10px;
+  transition:
+    background 120ms ease,
+    color 120ms ease,
+    border-color 120ms ease;
+}
+
+.obsidian-codex-context-clear:hover:not(:disabled) {
+  background: var(--obsidian-codex-highlight-soft);
+  border-color: var(--obsidian-codex-reasoning);
+  color: var(--obsidian-codex-reasoning);
+}
+
+.obsidian-codex-context-clear:disabled {
+  cursor: not-allowed;
+  opacity: 0.38;
 }
 
 .obsidian-codex-attachment-chip {

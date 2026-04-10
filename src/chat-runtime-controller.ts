@@ -4,7 +4,11 @@ import {
   persistWorkbenchSession,
   type ChatWorkbenchState
 } from "./chat-workbench";
-import type { PersistedChatEntry, PersistedChatSession } from "./chat-session";
+import type {
+  PersistedChatEntry,
+  PersistedChatSession,
+  PersistentContextItem
+} from "./chat-session";
 import { resolveSessionTitle } from "./chat-session";
 import { mapThreadEvent, type CodexService } from "./codex-service";
 import type { ComposerAttachment } from "./composer-attachments";
@@ -62,6 +66,7 @@ export interface ChatRuntimeState {
   isSending: boolean;
   wasCancelled: boolean;
   sessionEntries: PersistedChatEntry[];
+  persistentContextItems: PersistentContextItem[];
   contextUsage: ContextUsage;
 }
 
@@ -78,6 +83,7 @@ interface StatePatch {
   isSending?: boolean;
   wasCancelled?: boolean;
   sessionEntries?: PersistedChatEntry[];
+  persistentContextItems?: PersistentContextItem[];
   contextUsage?: ContextUsage;
 }
 
@@ -177,6 +183,7 @@ async function persistActiveSession(
     title: resolveSessionTitle(state.sessionEntries, existingSession?.title),
     updatedAt: Date.now(),
     entries: [...state.sessionEntries],
+    persistentContextItems: [...state.persistentContextItems],
     contextUsage: {
       threadCharsUsedEstimate: state.contextUsage.threadCharsUsedEstimate,
       sdkInputTokens: state.contextUsage.sdkInputTokens,
@@ -213,6 +220,9 @@ async function activatePersistedSession(
     sessionStarted: false
   });
   applyWorkbenchState(deps, activationState);
+  deps.patchState({
+    persistentContextItems: [...session.persistentContextItems]
+  });
   await deps.renderPersistedSession(session);
 
   const updatedSession = { ...session, updatedAt: Date.now() };
@@ -249,6 +259,9 @@ async function restoreActiveSession(
   }
 
   applyWorkbenchState(deps, activationState);
+  deps.patchState({
+    persistentContextItems: [...session.persistentContextItems]
+  });
   await deps.renderPersistedSession(session);
 
   const threadOptions = deps.buildThreadOptions();

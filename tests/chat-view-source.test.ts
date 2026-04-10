@@ -67,6 +67,10 @@ describe("chat-view history markup", () => {
 
     expect(source).toContain('this.mentionDropdownEl = inputShellEl.createDiv({ cls: "obsidian-codex-mention-dropdown" });');
     expect(source).toContain('this.attachmentStripEl = inputShellEl.createDiv({ cls: "obsidian-codex-attachment-strip" });');
+    expect(source).toContain('text: "Session context"');
+    expect(source).toContain('text: "This turn"');
+    expect(source).toContain('"/clear-context"');
+    expect(source).toContain("pinCurrentNote()");
   });
 
   it("uses the simplified sentence-case placeholder text", () => {

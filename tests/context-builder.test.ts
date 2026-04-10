@@ -172,6 +172,49 @@ describe("buildContextPayload", () => {
     expect(payload).toContain("content:\nRoadmap details");
   });
 
+  it("includes persistent context files in the prompt", () => {
+    const payload = buildContextPayload({
+      userInput: "Compare these notes",
+      persistentContextItems: [
+        {
+          kind: "vault-file",
+          path: "notes/roadmap.md",
+          content: "Roadmap details"
+        }
+      ]
+    });
+
+    expect(payload).toContain("Referenced files:");
+    expect(payload).toContain("- path: notes/roadmap.md");
+    expect(payload).toContain("content:\nRoadmap details");
+  });
+
+  it("keeps persistent context files and turn attachments together without regression", () => {
+    const payload = buildContextPayload({
+      userInput: "Compare these notes",
+      persistentContextItems: [
+        {
+          kind: "vault-file",
+          path: "notes/roadmap.md",
+          content: "Roadmap details"
+        }
+      ],
+      attachments: [
+        {
+          kind: "vault-file",
+          id: "file:notes/spec.md",
+          path: "notes/spec.md",
+          content: "Spec details"
+        } satisfies ComposerAttachment
+      ]
+    });
+
+    expect(payload).toContain("- path: notes/roadmap.md");
+    expect(payload).toContain("content:\nRoadmap details");
+    expect(payload).toContain("- path: notes/spec.md");
+    expect(payload).toContain("content:\nSpec details");
+  });
+
   it("includes attached images as local file paths with metadata", () => {
     const payload = buildContextPayload({
       userInput: "Analyze this image",
@@ -207,6 +250,24 @@ describe("buildContextPayload", () => {
           path: "notes/roadmap.md",
           content: "Roadmap details"
         } satisfies ComposerAttachment
+      ]
+    });
+
+    expect(payload).toContain("Referenced files:");
+    expect(payload).not.toContain("Active note (notes/roadmap.md):");
+  });
+
+  it("does not duplicate the active note when it is already in persistent context", () => {
+    const payload = buildContextPayload({
+      userInput: "Use the persistent context",
+      activeNotePath: "notes/roadmap.md",
+      activeNoteContent: "Roadmap details",
+      persistentContextItems: [
+        {
+          kind: "vault-file",
+          path: "notes/roadmap.md",
+          content: "Roadmap details"
+        }
       ]
     });
 

@@ -8,18 +8,22 @@
 
 - 侧边栏内的 Codex 对话与流式响应
 - 单侧栏会话工作台：新会话、最近会话恢复、当前会话状态
-- 当前笔记与当前选中文本的上下文注入
+- 当前笔记与当前选中文本的临时上下文注入
 - 编辑器内 inline edit：选区改写、光标处生成/插入，应用前显式确认
-- 在输入框里通过 `@` 显式附加 Vault 内 Markdown 文件
+- 在输入框里通过 `@` 把 Vault 内 Markdown 文件加入当前会话的显式上下文
+- `Pin current note`：把当前活动 Markdown 笔记加入当前会话的显式上下文
+- `/clear-context`：只清空当前会话的显式上下文
 - 在输入框里直接粘贴图片作为本轮附件
 
 当前附件能力的边界：
 
-- `@引用` 只支持当前 Vault 内 Markdown 文件
-- 单轮最多附加 5 个文件引用
+- `@引用` 和 `Pin current note` 只支持当前 Vault 内 Markdown 文件
+- 单个会话最多保留 5 个显式文件上下文
+- 当前笔记 / 当前选区仍然只在本轮发送时注入，不会自动持久化
 - 图片只支持粘贴，不支持拖拽、外链和外部目录
 - 单轮最多附加 3 张图片
 - 粘贴图片会先写入 Vault 配置目录下的 `plugins/codexian/.cache/pasted-images/`
+- 当前没有支持外部目录上下文、MCP context 或 provider 化上下文系统
 - 当前仍然是单侧栏模型，不支持多 tab
 - `New session` 只重置当前会话，不会清空最近会话列表
 - inline edit 当前只支持单选区或单光标，不支持多段批量编辑
@@ -40,7 +44,7 @@
 - 插件依赖本机已安装并已登录的 OpenAI Codex CLI
 - 插件本身不包含遥测、广告或付费墙
 - 联网行为主要由本机 Codex CLI 执行，用于访问 OpenAI 及其调用链路需要的网络资源
-- 插件会读取你显式提供给当前会话的本地上下文，包括当前笔记、当前选区、`@` 引用文件和粘贴图片附件
+- 插件会读取你显式提供给当前会话的本地上下文，包括当前笔记、当前选区、会话级 `@` 引用文件、`Pin current note` 和粘贴图片附件
 - 粘贴图片会写入 Vault 配置目录下的插件缓存目录 `plugins/codexian/.cache/pasted-images/`，默认配置目录通常是 `.obsidian`
 - `YOLO mode` 为显式高风险开关，开启后会把审批策略设为 `never`，并允许更高权限的本地执行
 
@@ -93,6 +97,7 @@
 - `New session`
 - `Resume last session`
 - `Show session history`
+- `Pin current note`
 - `Inline edit selection`
 - `Inline insert at cursor`
 

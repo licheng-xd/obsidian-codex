@@ -78,6 +78,15 @@ export default class ObsidianCodexPlugin extends Plugin {
     });
 
     this.addCommand({
+      id: "pin-current-note",
+      name: "Pin current note",
+      callback: async () => {
+        const view = await this.getOrCreateChatView();
+        await view?.pinCurrentNote();
+      }
+    });
+
+    this.addCommand({
       id: "inline-edit-selection",
       name: "Inline edit selection",
       editorCheckCallback: (checking) => {

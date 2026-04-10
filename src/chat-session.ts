@@ -33,12 +33,18 @@ export interface PersistedSessionUsage {
   readonly sdkOutputTokens: number | null;
 }
 
+export interface PersistentContextItem {
+  readonly kind: "vault-file";
+  readonly path: string;
+}
+
 export interface PersistedChatSession {
   readonly threadId: string;
   readonly title?: string;
   readonly updatedAt: number;
   readonly entries: ReadonlyArray<PersistedChatEntry>;
   readonly contextUsage: PersistedSessionUsage;
+  readonly persistentContextItems: ReadonlyArray<PersistentContextItem>;
 }
 
 export const MAX_RECENT_SESSIONS = 7;
@@ -125,6 +131,22 @@ function sanitizeEntry(value: unknown): PersistedChatEntry | null {
   }
 }
 
+export function sanitizePersistentContextItem(value: unknown): PersistentContextItem | null {
+  if (
+    !isRecord(value) ||
+    value.kind !== "vault-file" ||
+    typeof value.path !== "string" ||
+    !value.path.trim()
+  ) {
+    return null;
+  }
+
+  return {
+    kind: "vault-file",
+    path: value.path
+  };
+}
+
 export function sanitizePersistedChatSession(value: unknown): PersistedChatSession | null {
   if (!isRecord(value) || typeof value.threadId !== "string" || !value.threadId.trim()) {
     return null;
@@ -163,7 +185,12 @@ export function sanitizePersistedChatSession(value: unknown): PersistedChatSessi
         typeof value.contextUsage.sdkOutputTokens === "number"
           ? value.contextUsage.sdkOutputTokens
           : null
-      }
+      },
+    persistentContextItems: Array.isArray(value.persistentContextItems)
+      ? value.persistentContextItems
+          .map(sanitizePersistentContextItem)
+          .filter((item): item is PersistentContextItem => item !== null)
+      : []
   };
 }
 

@@ -11,6 +11,7 @@ describe("main source", () => {
     expect(source).toContain('id: "new-session"');
     expect(source).toContain('id: "resume-last-session"');
     expect(source).toContain('id: "show-session-history"');
+    expect(source).toContain('id: "pin-current-note"');
     expect(source).toContain('id: "inline-edit-selection"');
     expect(source).toContain('id: "inline-insert-at-cursor"');
     expect(source).not.toContain('id: "codexian-open-sidebar"');

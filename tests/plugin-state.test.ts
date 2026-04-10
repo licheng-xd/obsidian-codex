@@ -141,7 +141,8 @@ describe("plugin-state", () => {
             sdkInputTokens: 12,
             sdkCachedInputTokens: 1,
             sdkOutputTokens: 6
-          }
+          },
+          persistentContextItems: []
         }
       ],
       "thread-456"

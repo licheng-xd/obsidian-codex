@@ -18,7 +18,8 @@ function createSession(threadId: string, updatedAt: number): PersistedChatSessio
       sdkInputTokens: null,
       sdkCachedInputTokens: null,
       sdkOutputTokens: null
-    }
+    },
+    persistentContextItems: []
   };
 }
 

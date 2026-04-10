@@ -2,16 +2,22 @@ import {
   VAULT_ROOT_DIRECTORY,
   type VaultSaveTargetPlan
 } from "./vault-save-planner";
+import type { PersistentContextItem } from "./chat-session";
 import {
   isNotePathExplicitlyAttached,
   type ComposerAttachment
 } from "./composer-attachments";
+
+export interface ResolvedPersistentContextItem extends PersistentContextItem {
+  readonly content?: string;
+}
 
 export interface ContextInput {
   userInput: string;
   activeNotePath?: string;
   activeNoteContent?: string;
   selectionText?: string;
+  persistentContextItems?: ResolvedPersistentContextItem[];
   attachments?: ComposerAttachment[];
   saveTargetPlan?: VaultSaveTargetPlan;
 }
@@ -44,17 +50,52 @@ function buildNoteExcerpt(input: Pick<ContextInput, "activeNotePath" | "activeNo
   return sanitizeNoteContent(input.activeNoteContent, input.selectionText).trim();
 }
 
-function buildReferencedFileAttachments(attachments: ReadonlyArray<ComposerAttachment> | undefined): string {
-  const fileAttachments = attachments
-    ?.filter((attachment): attachment is Extract<ComposerAttachment, { kind: "vault-file" }> => attachment.kind === "vault-file")
-    .slice(0, MAX_FILE_ATTACHMENTS)
-    .map((attachment) => ({
-      path: attachment.path,
-      content: (attachment.content ?? "").slice(0, FILE_ATTACHMENT_CHAR_LIMIT).trim()
-    }))
-    .filter((attachment) => attachment.content.length > 0);
+interface ReferencedFileContext {
+  readonly path: string;
+  readonly content: string;
+}
 
-  if (!fileAttachments || fileAttachments.length === 0) {
+function collectReferencedFileContext(input: Pick<ContextInput, "persistentContextItems" | "attachments">): ReferencedFileContext[] {
+  const referencedFiles: ReferencedFileContext[] = [];
+  const seenPaths = new Set<string>();
+
+  for (const item of input.persistentContextItems ?? []) {
+    const content = (item.content ?? "").slice(0, FILE_ATTACHMENT_CHAR_LIMIT).trim();
+    if (!content || seenPaths.has(item.path)) {
+      continue;
+    }
+
+    referencedFiles.push({
+      path: item.path,
+      content
+    });
+    seenPaths.add(item.path);
+  }
+
+  for (const attachment of input.attachments ?? []) {
+    if (attachment.kind !== "vault-file") {
+      continue;
+    }
+
+    const content = (attachment.content ?? "").slice(0, FILE_ATTACHMENT_CHAR_LIMIT).trim();
+    if (!content || seenPaths.has(attachment.path)) {
+      continue;
+    }
+
+    referencedFiles.push({
+      path: attachment.path,
+      content
+    });
+    seenPaths.add(attachment.path);
+  }
+
+  return referencedFiles.slice(0, MAX_FILE_ATTACHMENTS);
+}
+
+function buildReferencedFileAttachments(input: Pick<ContextInput, "persistentContextItems" | "attachments">): string {
+  const fileAttachments = collectReferencedFileContext(input);
+
+  if (fileAttachments.length === 0) {
     return "";
   }
 
@@ -119,11 +160,15 @@ export function buildContextPayload(input: ContextInput): string {
   }
 
   const excerpt = buildNoteExcerpt(input);
-  if (excerpt && input.activeNotePath && !isNotePathExplicitlyAttached(input.attachments ?? [], input.activeNotePath)) {
+  const activeNoteAlreadyReferenced =
+    input.activeNotePath &&
+    (isNotePathExplicitlyAttached(input.attachments ?? [], input.activeNotePath) ||
+      (input.persistentContextItems ?? []).some((item) => item.path === input.activeNotePath));
+  if (excerpt && input.activeNotePath && !activeNoteAlreadyReferenced) {
     sections.push(`Active note (${input.activeNotePath}):\n${excerpt}`);
   }
 
-  const referencedFiles = buildReferencedFileAttachments(input.attachments);
+  const referencedFiles = buildReferencedFileAttachments(input);
   if (referencedFiles) {
     sections.push(referencedFiles);
   }
@@ -142,15 +187,15 @@ export function buildContextPayload(input: ContextInput): string {
 
 export function measureLocalContextUsage(input: ContextInput): { used: number; limit: number } {
   const selectionLength = input.selectionText?.length ?? 0;
-  const visibleFileAttachments = (input.attachments ?? [])
-    .filter((attachment): attachment is Extract<ComposerAttachment, { kind: "vault-file" }> => attachment.kind === "vault-file")
-    .slice(0, MAX_FILE_ATTACHMENTS);
+  const visibleFileAttachments = collectReferencedFileContext(input);
   const noteExcerptLength =
-    input.activeNotePath && isNotePathExplicitlyAttached(input.attachments ?? [], input.activeNotePath)
+    input.activeNotePath &&
+    (isNotePathExplicitlyAttached(input.attachments ?? [], input.activeNotePath) ||
+      (input.persistentContextItems ?? []).some((item) => item.path === input.activeNotePath))
       ? 0
       : buildNoteExcerpt(input).length;
   const fileAttachmentLength = visibleFileAttachments
-    .reduce((total, attachment) => total + (attachment.content ?? "").slice(0, FILE_ATTACHMENT_CHAR_LIMIT).trim().length, 0);
+    .reduce((total, attachment) => total + attachment.content.length, 0);
 
   return {
     used: selectionLength + noteExcerptLength + fileAttachmentLength,
