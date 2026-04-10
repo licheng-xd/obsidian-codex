@@ -32,6 +32,10 @@ import {
 } from "./chat-workbench";
 import { renderPersistedSessionEntries } from "./chat-message-renderer";
 import {
+  createChatRuntimeController,
+  type ChatRuntimeController
+} from "./chat-runtime-controller";
+import {
   MAX_FILE_ATTACHMENTS,
   NOTE_CHAR_LIMIT,
   THREAD_CONTEXT_CHAR_LIMIT,
@@ -49,10 +53,8 @@ import {
 } from "./composer-attachments";
 import { formatContextSummary } from "./context-summary";
 import { CODEX_ICON } from "./codex-icon";
-import { mapThreadEvent } from "./codex-service";
 import { renderEventCard } from "./event-cards";
 import {
-  estimateMappedEventChars,
   summarizeAssistantSystemEvents,
   type SummarizableAssistantEvent
 } from "./event-summary";
@@ -159,6 +161,7 @@ export class ChatView extends ItemView {
   private cancelButtonEl!: HTMLButtonElement;
   private newChatButtonEl!: HTMLButtonElement;
   private statusBar: StatusBar | null = null;
+  private readonly runtimeController: ChatRuntimeController;
   private sessionEntries: PersistedChatEntry[] = [];
   private recentSessions: PersistedChatSession[] = [];
   private activeSessionId: string | null = null;
@@ -182,6 +185,79 @@ export class ChatView extends ItemView {
 
   constructor(leaf: WorkspaceLeaf, private readonly plugin: ObsidianCodexPlugin) {
     super(leaf);
+    this.runtimeController = createChatRuntimeController({
+      codexService: this.plugin.codexService,
+      readState: () => ({
+        recentSessions: [...this.recentSessions],
+        activeSessionId: this.activeSessionId,
+        activeThreadId: this.activeThreadId,
+        sessionStarted: this.sessionStarted,
+        isSending: this.isSending,
+        wasCancelled: this.wasCancelled,
+        sessionEntries: [...this.sessionEntries],
+        contextUsage: this.contextUsage
+      }),
+      patchState: (patch) => {
+        if ("recentSessions" in patch && patch.recentSessions) {
+          this.recentSessions = [...patch.recentSessions];
+        }
+        if ("activeSessionId" in patch) {
+          this.activeSessionId = patch.activeSessionId ?? null;
+        }
+        if ("activeThreadId" in patch) {
+          this.activeThreadId = patch.activeThreadId ?? null;
+        }
+        if ("sessionStarted" in patch && typeof patch.sessionStarted === "boolean") {
+          this.sessionStarted = patch.sessionStarted;
+        }
+        if ("isSending" in patch && typeof patch.isSending === "boolean") {
+          this.isSending = patch.isSending;
+        }
+        if ("wasCancelled" in patch && typeof patch.wasCancelled === "boolean") {
+          this.wasCancelled = patch.wasCancelled;
+        }
+        if ("sessionEntries" in patch && patch.sessionEntries) {
+          this.sessionEntries = [...patch.sessionEntries];
+        }
+        if ("contextUsage" in patch && patch.contextUsage) {
+          this.contextUsage = patch.contextUsage;
+        }
+      },
+      buildThreadOptions: () => this.buildThreadOptions(),
+      collectContext: async (userInput: string) => await this.collectContext(userInput),
+      captureComposerDraft: () => this.captureComposerDraft(),
+      clearComposerAfterSend: () => this.clearComposerAfterSend(),
+      restoreComposerDraft: (inputValue, attachments) => {
+        this.inputEl.value = inputValue;
+        this.attachments = [...attachments];
+        this.updateMentionState();
+        this.updateComposerState();
+      },
+      renderPersistedSession: async (session) => await this.renderPersistedSession(session),
+      renderHistorySessionList: () => this.renderHistorySessionList(),
+      setHistoryPopoverOpen: (isOpen) => this.setHistoryPopoverOpen(isOpen),
+      setSendingState: (isSending) => this.setSendingState(isSending),
+      appendMessage: (role, text, persist) => this.appendMessage(role, text, persist),
+      formatUserTurnText: (userInput) => this.formatUserTurnText(userInput),
+      createAssistantTurn: () => this.createAssistantTurn(),
+      finalizeAssistantTurnMeta: (turn, interrupted) => this.finalizeAssistantTurnMeta(turn, interrupted),
+      updateAssistantTurnLiveState: (turn, phase) => this.updateAssistantTurnLiveState(turn, phase),
+      renderSummarizedAssistantEvents: (containerEl, events) =>
+        this.renderSummarizedAssistantEvents(containerEl, events),
+      renderAssistantText: async (containerEl, event, existingEl) =>
+        await this.renderAssistantText(containerEl, event, existingEl),
+      removeAssistantTurnIfEmpty: (turn) => this.removeAssistantTurnIfEmpty(turn),
+      refreshCanvasState: () => this.refreshCanvasState(),
+      scrollMessagesToBottom: () => this.scrollMessagesToBottom(),
+      updateContextUsage: (contextUsage) => this.statusBar?.updateContextUsage(contextUsage),
+      cleanupSentComposerDraft: (attachments) => this.cleanupSentComposerDraft(attachments),
+      saveSessionHistory: async (recentSessions, activeSessionId) =>
+        await this.plugin.saveSessionHistory([...recentSessions], activeSessionId),
+      updateContextSummary: async () => await this.updateContextSummary(),
+      showNotice: (message, timeout) => {
+        new Notice(message, timeout);
+      }
+    });
   }
 
   getViewType(): string {
@@ -201,7 +277,7 @@ export class ChatView extends ItemView {
     this.recentSessions = [...this.plugin.recentSessions];
     this.activeSessionId = this.plugin.activeSessionId;
     this.renderHistorySessionList();
-    await this.restoreActiveSession();
+    await this.runtimeController.restoreActiveSession();
     void this.updateContextSummary();
     this.registerEvent(this.app.workspace.on("active-leaf-change", () => void this.updateContextSummary()));
     this.registerDomEvent(document, "selectionchange", () => this.scheduleContextSummaryUpdate());
@@ -282,7 +358,7 @@ export class ChatView extends ItemView {
       stageActionsEl,
       "square",
       "Cancel current turn",
-      () => this.handleCancel(),
+      () => this.runtimeController.handleCancel(),
       false,
       "is-cancel"
     );
@@ -331,7 +407,7 @@ export class ChatView extends ItemView {
 
       if (shouldSubmitFromKeydown(keyInput)) {
         event.preventDefault();
-        void this.handleSend();
+        void this.runtimeController.handleSend();
         return;
       }
 
@@ -457,7 +533,7 @@ export class ChatView extends ItemView {
       metaEl.setText(timestamp);
 
       const activateSession = () => {
-        void this.activatePersistedSession(session.threadId);
+        void this.runtimeController.activatePersistedSession(session.threadId);
       };
 
       itemEl.addEventListener("click", activateSession);
@@ -907,6 +983,26 @@ export class ChatView extends ItemView {
     }
   }
 
+  private captureComposerDraft(): { inputValue: string; attachments: ComposerAttachment[] } {
+    const draftInputValue = this.inputEl.value;
+    const draftAttachments = [...this.attachments];
+    return {
+      inputValue: draftInputValue,
+      attachments: draftAttachments
+    };
+  }
+
+  private clearComposerAfterSend(): void {
+    this.inputEl.value = "";
+    this.attachments = [];
+    this.mentionState = null;
+    this.updateComposerState();
+  }
+
+  private cleanupSentComposerDraft(draftAttachments: ReadonlyArray<ComposerAttachment>): void {
+    this.cleanupAttachmentFiles(draftAttachments);
+  }
+
   private updateComposerState(): void {
     this.historyButtonEl.disabled = this.isSending;
     this.cancelButtonEl.disabled = !this.isSending;
@@ -936,7 +1032,7 @@ export class ChatView extends ItemView {
       return;
     }
 
-    await this.activatePersistedSession(latestSession.threadId);
+    await this.runtimeController.activatePersistedSession(latestSession.threadId);
   }
 
   private resetConversation(): void {
@@ -977,7 +1073,7 @@ export class ChatView extends ItemView {
     messageEl.setText(text);
     if (persist) {
       this.sessionEntries.push({ type: role, text });
-      void this.persistActiveSession();
+      void this.runtimeController.persistActiveSession();
     }
     this.refreshCanvasState();
     this.scrollMessagesToBottom();
@@ -1019,81 +1115,6 @@ export class ChatView extends ItemView {
     });
   }
 
-  private async restoreActiveSession(): Promise<void> {
-    const currentState = this.getWorkbenchState();
-    const activationState =
-      currentState.activeSessionId
-        ? activateRecentSession(currentState, currentState.activeSessionId)
-        : { ...currentState, selectedSession: null };
-    const session = activationState.selectedSession;
-    if (!session) {
-      return;
-    }
-
-    this.applyWorkbenchState(activationState);
-    await this.renderPersistedSession(session);
-
-    const threadOptions = this.buildThreadOptions();
-    if (threadOptions.workingDirectory) {
-      this.plugin.codexService.resumeThread(session.threadId, threadOptions);
-      this.sessionStarted = true;
-    }
-  }
-
-  private async persistActiveSession(): Promise<void> {
-    if (!this.activeThreadId || this.sessionEntries.length === 0) {
-      return;
-    }
-
-    const existingSession = this.recentSessions.find((session) => session.threadId === this.activeThreadId);
-    const nextSession: PersistedChatSession = {
-      threadId: this.activeThreadId,
-      title: resolveSessionTitle(this.sessionEntries, existingSession?.title),
-      updatedAt: Date.now(),
-      entries: [...this.sessionEntries],
-      contextUsage: {
-        threadCharsUsedEstimate: this.contextUsage.threadCharsUsedEstimate,
-        sdkInputTokens: this.contextUsage.sdkInputTokens,
-        sdkCachedInputTokens: this.contextUsage.sdkCachedInputTokens,
-        sdkOutputTokens: this.contextUsage.sdkOutputTokens
-      }
-    };
-    this.applyWorkbenchState(persistWorkbenchSession(this.getWorkbenchState(), nextSession));
-    this.renderHistorySessionList();
-    await this.plugin.saveSessionHistory(this.recentSessions, this.activeSessionId);
-  }
-
-  private async activatePersistedSession(threadId: string): Promise<void> {
-    if (this.isSending || threadId === this.activeSessionId) {
-      this.setHistoryPopoverOpen(false);
-      return;
-    }
-
-    const activationState = activateRecentSession(this.getWorkbenchState(), threadId);
-    const session = activationState.selectedSession;
-    if (!session) {
-      return;
-    }
-
-    this.plugin.codexService.clearThread();
-    this.wasCancelled = false;
-    this.sessionStarted = false;
-    this.applyWorkbenchState(activationState);
-    await this.renderPersistedSession(session);
-    const updatedSession = { ...session, updatedAt: Date.now() };
-    this.applyWorkbenchState(persistWorkbenchSession(this.getWorkbenchState(), updatedSession));
-    this.renderHistorySessionList();
-    await this.plugin.saveSessionHistory(this.recentSessions, threadId);
-
-    const threadOptions = this.buildThreadOptions();
-    if (threadOptions.workingDirectory) {
-      this.plugin.codexService.resumeThread(threadId, threadOptions);
-      this.sessionStarted = true;
-    }
-
-    this.setHistoryPopoverOpen(false);
-  }
-
   private getWorkbenchState(): ChatWorkbenchState {
     return {
       recentSessions: [...this.recentSessions],
@@ -1107,16 +1128,6 @@ export class ChatView extends ItemView {
     this.recentSessions = [...state.recentSessions];
     this.activeSessionId = state.activeSessionId;
     this.activeThreadId = state.activeThreadId;
-  }
-
-  private snapshotSummaryItems(
-    summaries: ReadonlyArray<MappedSummaryEvent>
-  ): PersistedSummaryItem[] {
-    return summaries.map((summary) => ({
-      label: summary.label,
-      preview: summary.preview,
-      lines: [...summary.lines]
-    }));
   }
 
   private async renderAssistantText(
@@ -1237,229 +1248,6 @@ export class ChatView extends ItemView {
       referencedFileCount: attachmentCounts["vault-file"],
       imageAttachmentCount: attachmentCounts["pasted-image"]
     });
-  }
-
-  private async handleSend(): Promise<void> {
-    const userInput = this.inputEl.value.trim();
-    if ((!userInput && this.attachments.length === 0) || this.isSending) {
-      return;
-    }
-
-    const draftInputValue = this.inputEl.value;
-    const draftAttachments = [...this.attachments];
-
-    const threadOptions = this.buildThreadOptions();
-    if (!threadOptions.workingDirectory) {
-      new Notice("Could not determine the local vault path.", 8000);
-      return;
-    }
-
-    const context = await this.collectContext(userInput);
-    const prompt = buildContextPayload(context);
-    const localUsage = measureLocalContextUsage(context);
-    this.contextUsage = {
-      ...this.contextUsage,
-      localCharsUsed: localUsage.used,
-      localCharsLimit: localUsage.limit
-    };
-    this.statusBar?.updateContextUsage(this.contextUsage);
-
-    if (!this.sessionStarted) {
-      if (this.activeThreadId) {
-        this.plugin.codexService.resumeThread(this.activeThreadId, threadOptions);
-      } else {
-        this.plugin.codexService.createThread(threadOptions);
-      }
-      this.sessionStarted = true;
-    }
-
-    this.wasCancelled = false;
-    this.setHistoryPopoverOpen(false);
-    this.appendMessage("user", this.formatUserTurnText(userInput));
-    this.inputEl.value = "";
-    this.attachments = [];
-    this.mentionState = null;
-    this.updateComposerState();
-    const assistantTurn = this.createAssistantTurn();
-    this.setSendingState(true);
-
-    const eventElements = new Map<string, HTMLElement>();
-    const latestSystemEvents = new Map<string, SummarizableAssistantEvent>();
-    const eventSizeByItemId = new Map<string, number>();
-    const trackEventChars = (itemId: string, size: number): number => {
-      const previousSize = eventSizeByItemId.get(itemId) ?? 0;
-      const nextSize = Math.max(previousSize, size);
-      eventSizeByItemId.set(itemId, nextSize);
-      return nextSize - previousSize;
-    };
-    const turnPromptChars = prompt.length;
-    let turnGeneratedChars = 0;
-    let assistantMarkdown = "";
-    let sawVisibleAssistantEvent = false;
-    let streamErrorHandled = false;
-    let turnCompleted = false;
-
-    try {
-      for await (const event of this.plugin.codexService.sendMessage(prompt, threadOptions)) {
-        if (event.type === "thread.started") {
-          this.activeThreadId = event.thread_id;
-          this.activeSessionId = event.thread_id;
-          void this.persistActiveSession();
-        }
-
-        const mapped = mapThreadEvent(event);
-
-        if (mapped.type === "noop" || mapped.type === "turn_started") {
-          continue;
-        }
-
-        if (mapped.type === "turn_completed") {
-          if (!assistantTurn.metaFinalized) {
-            this.finalizeAssistantTurnMeta(assistantTurn);
-          }
-          const summaryEvents = summarizeAssistantSystemEvents(Array.from(latestSystemEvents.values()));
-          if (latestSystemEvents.size > 0) {
-            this.renderSummarizedAssistantEvents(
-              assistantTurn.eventsEl,
-              Array.from(latestSystemEvents.values())
-            );
-          }
-          this.contextUsage = {
-            ...this.contextUsage,
-            threadCharsUsedEstimate:
-              this.contextUsage.threadCharsUsedEstimate + turnPromptChars + turnGeneratedChars,
-            sdkInputTokens: mapped.usage.inputTokens,
-            sdkCachedInputTokens: mapped.usage.cachedInputTokens,
-            sdkOutputTokens: mapped.usage.outputTokens
-          };
-          this.statusBar?.updateContextUsage(this.contextUsage);
-          if (assistantMarkdown || summaryEvents.length > 0) {
-            this.sessionEntries.push({
-              type: "assistant",
-              metaLabel: assistantTurn.metaLabelEl.textContent ?? "Thought",
-              contentMarkdown: assistantMarkdown,
-              summaries: this.snapshotSummaryItems(summaryEvents)
-            });
-            await this.persistActiveSession();
-          }
-          turnCompleted = true;
-          continue;
-        }
-
-        if (mapped.type === "reasoning") {
-          this.updateAssistantTurnLiveState(assistantTurn, "thinking");
-          latestSystemEvents.set(mapped.itemId, mapped);
-          turnGeneratedChars += trackEventChars(mapped.itemId, estimateMappedEventChars(mapped));
-          sawVisibleAssistantEvent = true;
-          const existingEl = eventElements.get(mapped.itemId);
-          const cardEl = renderEventCard(assistantTurn.eventsEl, mapped, existingEl);
-          eventElements.set(mapped.itemId, cardEl);
-          this.scrollMessagesToBottom();
-          continue;
-        }
-
-        if (mapped.type === "error" || mapped.type === "turn_failed") {
-          this.finalizeAssistantTurnMeta(assistantTurn);
-          renderEventCard(assistantTurn.eventsEl, mapped);
-          this.refreshCanvasState();
-          this.scrollMessagesToBottom();
-          streamErrorHandled = true;
-          throw new Error(mapped.message);
-        }
-
-        this.updateAssistantTurnLiveState(assistantTurn, "working");
-        if (!sawVisibleAssistantEvent) {
-          sawVisibleAssistantEvent = true;
-        }
-
-        const existingEl = "itemId" in mapped ? eventElements.get(mapped.itemId) : undefined;
-        const targetContainer =
-          mapped.type === "text" ? assistantTurn.contentEl : assistantTurn.eventsEl;
-        const cardEl =
-          mapped.type === "text"
-            ? await this.renderAssistantText(
-                targetContainer,
-                mapped,
-                existingEl
-              )
-            : renderEventCard(
-                targetContainer,
-                mapped as VisibleAssistantEvent,
-                existingEl
-              );
-        if (mapped.type === "text") {
-          assistantMarkdown = mapped.text;
-        }
-        if ("itemId" in mapped) {
-          eventElements.set(mapped.itemId, cardEl);
-          if (mapped.type !== "text") {
-            latestSystemEvents.set(mapped.itemId, mapped as SummarizableAssistantEvent);
-          }
-          turnGeneratedChars += trackEventChars(mapped.itemId, estimateMappedEventChars(mapped));
-        }
-
-        this.refreshCanvasState();
-        this.scrollMessagesToBottom();
-      }
-
-      if (!sawVisibleAssistantEvent && !streamErrorHandled) {
-        this.removeAssistantTurnIfEmpty(assistantTurn);
-        this.appendMessage("status", "No response received.");
-      }
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      if (this.wasCancelled) {
-        if (sawVisibleAssistantEvent) {
-          this.finalizeAssistantTurnMeta(assistantTurn, true);
-          if (assistantMarkdown || latestSystemEvents.size > 0) {
-            const summaryEvents = summarizeAssistantSystemEvents(Array.from(latestSystemEvents.values()));
-            this.renderSummarizedAssistantEvents(
-              assistantTurn.eventsEl,
-              Array.from(latestSystemEvents.values())
-            );
-            this.sessionEntries.push({
-              type: "assistant",
-              metaLabel: assistantTurn.metaLabelEl.textContent ?? "Interrupted",
-              contentMarkdown: assistantMarkdown,
-              summaries: this.snapshotSummaryItems(summaryEvents)
-            });
-            await this.persistActiveSession();
-          }
-        } else {
-          assistantTurn.rootEl.remove();
-          this.refreshCanvasState();
-        }
-        this.appendMessage("status", "Interrupted.");
-      } else if (!streamErrorHandled) {
-        this.finalizeAssistantTurnMeta(assistantTurn);
-        renderEventCard(assistantTurn.eventsEl, { type: "error", message });
-        this.refreshCanvasState();
-        this.scrollMessagesToBottom();
-        new Notice(`Codex request failed: ${message}`, 8000);
-      } else {
-        new Notice(`Codex request failed: ${message}`, 8000);
-      }
-    } finally {
-      this.setSendingState(false);
-      if (turnCompleted) {
-        this.cleanupAttachmentFiles(draftAttachments);
-      } else {
-        this.inputEl.value = draftInputValue;
-        this.attachments = draftAttachments;
-        this.updateMentionState();
-        this.updateComposerState();
-      }
-      await this.updateContextSummary();
-    }
-  }
-
-  private handleCancel(): void {
-    if (!this.isSending) {
-      return;
-    }
-
-    this.wasCancelled = true;
-    this.plugin.codexService.cancelCurrentTurn();
   }
 
   private scheduleContextSummaryUpdate(): void {

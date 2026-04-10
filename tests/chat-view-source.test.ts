@@ -35,6 +35,23 @@ describe("chat-view history markup", () => {
     expect(source).not.toContain("private renderPersistedSummaryItems(");
   });
 
+  it("delegates runtime orchestration to the dedicated runtime controller module", () => {
+    const source = readFileSync(resolve(__dirname, "../src/chat-view.ts"), "utf8");
+
+    expect(source).toContain('from "./chat-runtime-controller"');
+    expect(source).toContain("createChatRuntimeController(");
+    expect(source).toContain("this.runtimeController.handleSend()");
+    expect(source).toContain("this.runtimeController.handleCancel()");
+    expect(source).toContain("this.runtimeController.restoreActiveSession()");
+    expect(source).toContain("this.runtimeController.persistActiveSession()");
+    expect(source).toContain("this.runtimeController.activatePersistedSession(");
+    expect(source).not.toContain("private async handleSend()");
+    expect(source).not.toContain("private handleCancel()");
+    expect(source).not.toContain("private async restoreActiveSession()");
+    expect(source).not.toContain("private async persistActiveSession()");
+    expect(source).not.toContain("private async activatePersistedSession(");
+  });
+
   it("wires paste handling, mention updates, and attachment context into the composer", () => {
     const source = readFileSync(resolve(__dirname, "../src/chat-view.ts"), "utf8");
 
