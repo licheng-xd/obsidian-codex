@@ -56,7 +56,7 @@
   --obsidian-codex-cancel-bg: rgba(15, 23, 42, 0.08);
   --obsidian-codex-cancel-color: rgba(15, 23, 42, 0.62);
   --obsidian-codex-cancel-disabled-color: rgba(15, 23, 42, 0.38);
-  --obsidian-codex-placeholder: rgba(15, 23, 42, 0.46);
+  --obsidian-codex-placeholder: rgba(15, 23, 42, 0.34);
   --obsidian-codex-statusbar-caret: rgba(46, 125, 80, 0.72);
   --obsidian-codex-vault-meta: rgba(15, 23, 42, 0.4);
   --obsidian-codex-switch-bg: rgba(15, 23, 42, 0.08);
@@ -116,7 +116,7 @@
   --obsidian-codex-cancel-bg: rgba(236, 238, 232, 0.12);
   --obsidian-codex-cancel-color: rgba(236, 238, 232, 0.68);
   --obsidian-codex-cancel-disabled-color: rgba(236, 238, 232, 0.48);
-  --obsidian-codex-placeholder: rgba(236, 238, 232, 0.74);
+  --obsidian-codex-placeholder: rgba(236, 238, 232, 0.56);
   --obsidian-codex-statusbar-caret: rgba(130, 221, 163, 0.72);
   --obsidian-codex-vault-meta: rgba(236, 238, 232, 0.34);
   --obsidian-codex-switch-bg: rgba(255, 255, 255, 0.08);
@@ -302,11 +302,11 @@
 }
 
 .obsidian-codex-turn {
-  align-self: stretch;
+  align-self: flex-start;
   display: flex;
   flex-direction: column;
   gap: 5px;
-  margin: 0 auto;
+  margin: 0;
 }
 
 .obsidian-codex-turn-meta {
@@ -1065,12 +1065,40 @@
   gap: 8px;
 }
 
+.obsidian-codex-context-heading-row {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+}
+
 .obsidian-codex-context-heading {
   color: var(--obsidian-codex-soft);
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.02em;
   text-transform: uppercase;
+}
+
+.obsidian-codex-context-status {
+  background: var(--obsidian-codex-highlight-soft);
+  border: 1px solid var(--obsidian-codex-accent-outline);
+  border-radius: 999px;
+  color: var(--obsidian-codex-soft);
+  font-size: 10px;
+  line-height: 1.2;
+  padding: 3px 8px;
+  text-transform: none;
+}
+
+.obsidian-codex-context-empty {
+  background: var(--obsidian-codex-surface-soft);
+  border: 1px dashed var(--obsidian-codex-accent-outline);
+  border-radius: 12px;
+  color: var(--obsidian-codex-soft);
+  font-size: 11px;
+  line-height: 1.4;
+  padding: 10px 12px;
 }
 
 .obsidian-codex-context-clear {
@@ -1113,6 +1141,20 @@
 
 .obsidian-codex-attachment-chip.is-image {
   background: var(--obsidian-codex-highlight-soft);
+}
+
+.obsidian-codex-attachment-chip.is-external {
+  background: var(--obsidian-codex-highlight-soft);
+  border-style: dashed;
+}
+
+.obsidian-codex-attachment-chip.is-missing {
+  background: color-mix(in srgb, var(--background-modifier-error, var(--obsidian-codex-danger)) 10%, transparent);
+  border-color: var(--background-modifier-error, var(--obsidian-codex-danger));
+}
+
+.obsidian-codex-attachment-chip.is-missing .obsidian-codex-attachment-meta {
+  color: var(--text-error, var(--obsidian-codex-danger));
 }
 
 .obsidian-codex-attachment-body {
@@ -1168,6 +1210,41 @@
 .obsidian-codex-attachment-remove:disabled {
   cursor: not-allowed;
   opacity: 0.38;
+}
+
+.obsidian-codex-inline-edit-clarification {
+  align-items: center;
+  background: var(--obsidian-codex-surface-soft);
+  border: 1px solid var(--obsidian-codex-accent-outline);
+  border-radius: 12px;
+  color: var(--obsidian-codex-text);
+  display: none;
+  gap: 10px;
+  justify-content: space-between;
+  padding: 10px 12px;
+}
+
+.obsidian-codex-inline-edit-clarification.is-visible {
+  display: flex;
+}
+
+.obsidian-codex-inline-edit-clarification-message {
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.obsidian-codex-inline-edit-clarification-dismiss {
+  background: transparent;
+  border: 0;
+  color: var(--obsidian-codex-soft);
+  cursor: pointer;
+  font-size: 11px;
+  padding: 0;
+  white-space: nowrap;
+}
+
+.obsidian-codex-inline-edit-clarification-dismiss:hover {
+  color: var(--obsidian-codex-reasoning);
 }
 
 .obsidian-codex-tray-footer {
@@ -1245,6 +1322,10 @@
   left: -2px;
 }
 
+.obsidian-codex-statusbar-menu-group.is-hidden {
+  display: none;
+}
+
 .obsidian-codex-statusbar-menu-group:hover .obsidian-codex-statusbar-menu {
   display: flex;
 }
@@ -1279,6 +1360,12 @@
 .obsidian-codex-statusbar-menu-item.is-selected {
   border-left-color: var(--obsidian-codex-accent-soft);
   font-weight: 600;
+}
+
+.obsidian-codex-statusbar-menu-item:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+  transform: none;
 }
 
 .obsidian-codex-statusbar-meta {
@@ -1317,6 +1404,38 @@
 
 .obsidian-codex-statusbar-meta.is-vault {
   color: var(--obsidian-codex-vault-meta);
+}
+
+.obsidian-codex-statusbar-meter {
+  display: inline-flex;
+  align-items: center;
+  color: var(--obsidian-codex-soft);
+  gap: 5px;
+  white-space: nowrap;
+}
+
+.obsidian-codex-statusbar-meter-label {
+  font-family: var(--font-monospace);
+  font-size: 9px;
+  line-height: 1.2;
+}
+
+.obsidian-codex-statusbar-meter-track {
+  background: var(--obsidian-codex-highlight-soft);
+  border: 1px solid var(--obsidian-codex-accent-outline);
+  border-radius: 999px;
+  display: inline-flex;
+  height: 6px;
+  overflow: hidden;
+  width: 42px;
+}
+
+.obsidian-codex-statusbar-meter-fill {
+  background: var(--obsidian-codex-reasoning);
+  border-radius: inherit;
+  display: inline-flex;
+  min-width: 0;
+  transition: width 160ms ease;
 }
 
 .obsidian-codex-statusbar-yolo {

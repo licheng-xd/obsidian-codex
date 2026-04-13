@@ -33,10 +33,19 @@ export interface PersistedSessionUsage {
   readonly sdkOutputTokens: number | null;
 }
 
-export interface PersistentContextItem {
+export interface VaultPersistentContextItem {
   readonly kind: "vault-file";
   readonly path: string;
 }
+
+export interface ExternalPersistentContextItem {
+  readonly kind: "external-file";
+  readonly path: string;
+}
+
+export type PersistentContextItem =
+  | VaultPersistentContextItem
+  | ExternalPersistentContextItem;
 
 export interface PersistedChatSession {
   readonly threadId: string;
@@ -131,23 +140,35 @@ function sanitizeEntry(value: unknown): PersistedChatEntry | null {
   }
 }
 
-export function sanitizePersistentContextItem(value: unknown): PersistentContextItem | null {
-  if (
-    !isRecord(value) ||
-    value.kind !== "vault-file" ||
-    typeof value.path !== "string" ||
-    !value.path.trim()
-  ) {
+export function sanitizePersistentContextItem(
+  value: unknown,
+  externalContextRoots: ReadonlyArray<string> = []
+): PersistentContextItem | null {
+  if (!isRecord(value) || typeof value.path !== "string" || !value.path.trim()) {
     return null;
   }
 
-  return {
-    kind: "vault-file",
-    path: value.path
-  };
+  if (value.kind === "vault-file") {
+    return {
+      kind: "vault-file",
+      path: value.path
+    };
+  }
+
+  if (value.kind === "external-file" && isWithinExternalContextRoots(value.path, externalContextRoots)) {
+    return {
+      kind: "external-file",
+      path: value.path
+    };
+  }
+
+  return null;
 }
 
-export function sanitizePersistedChatSession(value: unknown): PersistedChatSession | null {
+export function sanitizePersistedChatSession(
+  value: unknown,
+  externalContextRoots: ReadonlyArray<string> = []
+): PersistedChatSession | null {
   if (!isRecord(value) || typeof value.threadId !== "string" || !value.threadId.trim()) {
     return null;
   }
@@ -188,7 +209,7 @@ export function sanitizePersistedChatSession(value: unknown): PersistedChatSessi
       },
     persistentContextItems: Array.isArray(value.persistentContextItems)
       ? value.persistentContextItems
-          .map(sanitizePersistentContextItem)
+          .map((item) => sanitizePersistentContextItem(item, externalContextRoots))
           .filter((item): item is PersistentContextItem => item !== null)
       : []
   };
@@ -353,3 +374,4 @@ export function resolveSessionTitle(
 export function getSessionDisplayTitle(session: PersistedChatSession): string {
   return resolveSessionTitle(session.entries, session.title);
 }
+import { isWithinExternalContextRoots } from "./external-contexts";

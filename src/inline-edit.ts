@@ -1,4 +1,9 @@
+import { getInlineEditSystemPrompt, extractInlineEditResponse, type InlineEditExtraction } from "./prompt/inline-edit";
+
 export type InlineEditMode = "rewrite-selection" | "insert-at-cursor";
+
+export type { InlineEditExtraction };
+export { extractInlineEditResponse };
 
 const INLINE_CONTEXT_RADIUS = 240;
 const SINGLE_FENCED_BLOCK_PATTERN = /^```(?:[\w-]+)?\r?\n([\s\S]*?)\r?\n```$/;
@@ -37,7 +42,8 @@ export function buildInlineEditPrompt(input: InlineEditPromptInput): string {
   const context = sliceContext(input.documentText, input.rangeStart, input.rangeEnd);
   const instruction = input.instruction.trim();
 
-  sections.push("You are editing a note inside Obsidian.");
+  sections.push(getInlineEditSystemPrompt());
+  sections.push("---");
   sections.push(
     input.mode === "rewrite-selection"
       ? "Task: Rewrite the selected text inside the current note."
@@ -74,13 +80,26 @@ export function buildInlineEditPrompt(input: InlineEditPromptInput): string {
 }
 
 export function unwrapInlineEditResponse(response: string): string {
+  return resolveInlineEditResponse(response).text;
+}
+
+export function resolveInlineEditResponse(response: string): InlineEditExtraction {
+  const extraction = extractInlineEditResponse(response);
+  if (extraction.kind === "replacement" || extraction.kind === "insertion") {
+    return extraction;
+  }
+
+  if (extraction.kind === "clarification") {
+    return extraction;
+  }
+
   const trimmed = response.trim();
   const fencedMatch = trimmed.match(SINGLE_FENCED_BLOCK_PATTERN);
   if (fencedMatch) {
-    return fencedMatch[1]?.trim() ?? "";
+    return { kind: "raw", text: fencedMatch[1]?.trim() ?? "" };
   }
 
-  return trimmed;
+  return { kind: "raw", text: trimmed };
 }
 
 export function buildInlineEditReview(input: {

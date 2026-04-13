@@ -7,6 +7,10 @@ export interface ChatSubmitKeyInput {
   isComposing?: boolean;
 }
 
+function isSubmitEnterKey(key: string): boolean {
+  return key === "Enter" || key === "NumpadEnter";
+}
+
 export interface TextInsertionInput {
   value: string;
   selectionStart: number;
@@ -21,7 +25,7 @@ export interface TextInsertionResult {
 }
 
 export function shouldSubmitFromKeydown(input: ChatSubmitKeyInput): boolean {
-  if (input.key !== "Enter" || input.isComposing) {
+  if (!isSubmitEnterKey(input.key) || input.isComposing) {
     return false;
   }
 
@@ -29,7 +33,7 @@ export function shouldSubmitFromKeydown(input: ChatSubmitKeyInput): boolean {
 }
 
 export function shouldInsertLineBreakFromKeydown(input: ChatSubmitKeyInput): boolean {
-  if (input.key !== "Enter" || input.isComposing) {
+  if (!isSubmitEnterKey(input.key) || input.isComposing) {
     return false;
   }
 

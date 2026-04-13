@@ -189,6 +189,23 @@ describe("buildContextPayload", () => {
     expect(payload).toContain("content:\nRoadmap details");
   });
 
+  it("includes external persistent context files in the prompt without changing the section shape", () => {
+    const payload = buildContextPayload({
+      userInput: "Compare these files",
+      persistentContextItems: [
+        {
+          kind: "external-file",
+          path: "/Users/demo/projects/specs/plan.md",
+          content: "External plan details"
+        }
+      ]
+    });
+
+    expect(payload).toContain("Referenced files:");
+    expect(payload).toContain("- path: /Users/demo/projects/specs/plan.md");
+    expect(payload).toContain("content:\nExternal plan details");
+  });
+
   it("keeps persistent context files and turn attachments together without regression", () => {
     const payload = buildContextPayload({
       userInput: "Compare these notes",

@@ -12,7 +12,7 @@ import {
   buildInlineEditPrompt,
   buildInlineEditReview,
   type InlineEditMode,
-  unwrapInlineEditResponse
+  resolveInlineEditResponse
 } from "./inline-edit";
 import {
   InlineEditInstructionModal,
@@ -94,7 +94,7 @@ async function generateInlineEditText(
   plugin: ObsidianCodexPlugin,
   snapshot: InlineEditSnapshot,
   instruction: string
-): Promise<string> {
+): Promise<{ kind: "content" | "clarification"; text: string }> {
   const workingDirectory = getVaultRootPath(plugin);
   if (!workingDirectory) {
     throw new Error("Could not determine the local vault path.");
@@ -136,7 +136,18 @@ async function generateInlineEditText(
     }
   }
 
-  return unwrapInlineEditResponse(latestText);
+  const response = resolveInlineEditResponse(latestText);
+  if (response.kind === "clarification") {
+    return {
+      kind: "clarification",
+      text: response.text
+    };
+  }
+
+  return {
+    kind: "content",
+    text: response.text
+  };
 }
 
 function applyInlineEdit(snapshot: InlineEditSnapshot, proposedText: string): void {
@@ -181,15 +192,22 @@ export async function runInlineEditCommand(
 
   new Notice("Generating inline edit...", 3000);
 
-  let proposedText = "";
+  let generationResult: Awaited<ReturnType<typeof generateInlineEditText>> | null = null;
   try {
-    proposedText = await generateInlineEditText(plugin, snapshot, instruction);
+    generationResult = await generateInlineEditText(plugin, snapshot, instruction);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     new Notice(`Inline edit failed: ${message}`, 8000);
     return;
   }
 
+  if (generationResult.kind === "clarification") {
+    plugin.getActiveChatView()?.showInlineEditClarification(generationResult.text) ??
+      new Notice(generationResult.text, 8000);
+    return;
+  }
+
+  const proposedText = generationResult.text;
   if (!proposedText.trim()) {
     new Notice("Inline edit returned empty text.", 6000);
     return;

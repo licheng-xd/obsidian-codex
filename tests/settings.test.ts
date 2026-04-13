@@ -21,7 +21,9 @@ describe("sanitizePluginSettings", () => {
         approvalPolicy: "never",
         model: "gpt-5.3-codex",
         reasoningEffort: "xhigh",
-        yoloMode: true
+        yoloMode: true,
+        externalContextRootsEnabled: true,
+        persistentExternalContextRoots: ["/Users/demo/projects", "/Users/demo/research"]
       })
     ).toEqual({
       codexPath: "/custom/bin/codex",
@@ -31,7 +33,11 @@ describe("sanitizePluginSettings", () => {
       approvalPolicy: "never",
       model: "gpt-5.3-codex",
       reasoningEffort: "xhigh",
-      yoloMode: true
+      yoloMode: true,
+      externalContextRootsEnabled: true,
+      persistentExternalContextRoots: ["/Users/demo/projects", "/Users/demo/research"],
+      userName: "",
+      customInstructions: ""
     });
   });
 
@@ -41,8 +47,10 @@ describe("sanitizePluginSettings", () => {
         sandboxMode: "invalid" as "read-only",
         approvalPolicy: "invalid" as "never",
         model: 123 as unknown as string,
-        reasoningEffort: "ultra" as "high",
-        yoloMode: "true" as unknown as boolean
+      reasoningEffort: "ultra" as "high",
+      yoloMode: "true" as unknown as boolean,
+      externalContextRootsEnabled: "yes" as unknown as boolean,
+      persistentExternalContextRoots: ["relative/path", "/Users/demo", "/Users/demo/nested"]
       })
     ).toEqual({
       ...DEFAULT_SETTINGS,
@@ -50,7 +58,9 @@ describe("sanitizePluginSettings", () => {
       approvalPolicy: DEFAULT_SETTINGS.approvalPolicy,
       model: DEFAULT_SETTINGS.model,
       reasoningEffort: DEFAULT_SETTINGS.reasoningEffort,
-      yoloMode: DEFAULT_SETTINGS.yoloMode
+      yoloMode: DEFAULT_SETTINGS.yoloMode,
+      externalContextRootsEnabled: DEFAULT_SETTINGS.externalContextRootsEnabled,
+      persistentExternalContextRoots: ["/Users/demo"]
     });
   });
 

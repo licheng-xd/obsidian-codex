@@ -1,103 +1,39 @@
+import { MODEL_OPTIONS, REASONING_EFFORT_OPTIONS, type ContextUsage, type ReasoningEffort } from "./types";
+export {
+  formatEstimatedContextMeterLabel,
+  formatEstimatedContextMeterTitle,
+  formatContextWindowTitle,
+  formatContextWindowUsage,
+  formatExecutionStateLabel,
+  formatLastTurnUsage,
+  getEstimatedContextMeterPercentage,
+  getModelContextWindow,
+  getModelSelectLabel,
+  getReasoningEffortLabel
+} from "./status-bar/formatters";
 import {
-  MODEL_CONTEXT_WINDOWS,
-  MODEL_OPTIONS,
-  REASONING_EFFORT_OPTIONS,
-  type ContextUsage,
-  type ReasoningEffort
-} from "./types";
-
-function formatCompactCount(value: number): string {
-  if (value < 1000) {
-    return String(value);
-  }
-
-  if (value >= 1_000_000) {
-    const compactValue = Math.round(value / 100_000) / 10;
-    return `${String(compactValue).replace(/\.0$/, "")}M`;
-  }
-
-  const compactValue = value >= 10_000 ? Math.round(value / 1000) : Math.round(value / 100) / 10;
-  return `${String(compactValue).replace(/\.0$/, "")}k`;
-}
-
-function formatEstimatedCount(value: number): string {
-  if (value <= 0) {
-    return "0";
-  }
-
-  return `~${formatCompactCount(value)}`;
-}
-
-function formatLocalContextUsage(usage: ContextUsage): string {
-  return `Local ${formatCompactCount(usage.localCharsUsed)} / ${formatCompactCount(usage.localCharsLimit)}`;
-}
-
-export function getModelContextWindow(model: string): number | null {
-  return MODEL_CONTEXT_WINDOWS[model as keyof typeof MODEL_CONTEXT_WINDOWS] ?? null;
-}
-
-export function formatContextWindowUsage(
-  model: string,
-  usage: ContextUsage
-): string {
-  void model;
-  return formatLocalContextUsage(usage);
-}
-
-export function formatContextWindowTitle(
-  model: string,
-  usage: ContextUsage
-): string {
-  const contextWindow = getModelContextWindow(model);
-  const historyEstimate = Math.max(0, Math.round(usage.threadCharsUsedEstimate));
-
-  return [
-    `Local context: ${formatCompactCount(usage.localCharsUsed)} / ${formatCompactCount(usage.localCharsLimit)} chars`,
-    `Visible history est.: ${formatEstimatedCount(historyEstimate)} chars`,
-    contextWindow
-      ? `Configured model window: ${formatCompactCount(contextWindow)} tokens`
-      : "Configured model window: unavailable",
-    "Thread window: unavailable in current Codex SDK",
-    formatLastTurnUsage(
-      usage.sdkInputTokens,
-      usage.sdkCachedInputTokens,
-      usage.sdkOutputTokens
-    ),
-    usage.sdkInputTokens === null
-      ? "Turn input note: pending"
-      : "Turn input note: aggregate across the completed turn, not live thread window",
-    "Auto-compact: unavailable in current Codex SDK"
-  ].join(" · ");
-}
-
-export function formatLastTurnUsage(
-  input: number | null,
-  cached: number | null,
-  output: number | null
-): string {
-  if (input === null || cached === null || output === null) {
-    return "Last turn: pending";
-  }
-
-  return `Last turn: in ${formatCompactCount(input)} / cached ${formatCompactCount(cached)} / out ${formatCompactCount(output)}`;
-}
-
-export function formatExecutionStateLabel(isRunning: boolean): string {
-  return isRunning ? "Running" : "Ready";
-}
-
-export function getModelSelectLabel(model: string): string {
-  return MODEL_OPTIONS.find((option) => option.id === model)?.label ?? model;
-}
-
-export function getReasoningEffortLabel(effort: ReasoningEffort): string {
-  return REASONING_EFFORT_OPTIONS.find((option) => option.id === effort)?.label ?? effort;
-}
+  formatEstimatedContextMeterLabel,
+  formatEstimatedContextMeterTitle,
+  formatContextWindowTitle,
+  formatContextWindowUsage,
+  formatExecutionStateLabel,
+  getEstimatedContextMeterPercentage,
+  getModelSelectLabel,
+  getReasoningEffortLabel
+} from "./status-bar/formatters";
 
 interface StatusBarCallbacks {
   onModelChange: (model: string) => void | Promise<void>;
   onReasoningEffortChange: (effort: ReasoningEffort) => void | Promise<void>;
   onYoloChange: (enabled: boolean) => void | Promise<void>;
+  onAddExternalContext: () => void | Promise<void>;
+  onClearExternalContext: () => void | Promise<void>;
+}
+
+interface ExternalContextStatus {
+  enabled: boolean;
+  rootCount: number;
+  fileCount: number;
 }
 
 function getVaultDisplayLabel(workingDirectory?: string): string {
@@ -121,6 +57,13 @@ export class StatusBar {
   private readonly reasoningGroupEl: HTMLDivElement;
   private readonly reasoningTriggerEl: HTMLSpanElement;
   private readonly reasoningMenuEl: HTMLDivElement;
+  private readonly externalContextGroupEl: HTMLDivElement;
+  private readonly externalContextTriggerEl: HTMLSpanElement;
+  private readonly externalContextMenuEl: HTMLDivElement;
+  private readonly estimatedMeterEl: HTMLDivElement;
+  private readonly estimatedMeterLabelEl: HTMLSpanElement;
+  private readonly estimatedMeterTrackEl: HTMLSpanElement;
+  private readonly estimatedMeterFillEl: HTMLSpanElement;
   private readonly executionStateEl: HTMLDivElement;
   private readonly localUsageEl: HTMLDivElement;
   private readonly workingDirectoryEl: HTMLDivElement;
@@ -129,6 +72,11 @@ export class StatusBar {
   private currentModel: string;
   private currentReasoningEffort: ReasoningEffort;
   private isRunning = false;
+  private externalContextStatus: ExternalContextStatus = {
+    enabled: false,
+    rootCount: 0,
+    fileCount: 0
+  };
   private currentContextUsage: ContextUsage = {
     localCharsUsed: 0,
     localCharsLimit: 4000,
@@ -164,8 +112,23 @@ export class StatusBar {
     this.reasoningTriggerEl = this.reasoningGroupEl.querySelector("span") as HTMLSpanElement;
     this.reasoningMenuEl = this.reasoningGroupEl.querySelector(".obsidian-codex-statusbar-menu") as HTMLDivElement;
 
+    this.externalContextGroupEl = this.createMenuGroup(containerEl, "External contexts", "is-external");
+    this.externalContextTriggerEl = this.externalContextGroupEl.querySelector("span") as HTMLSpanElement;
+    this.externalContextMenuEl = this.externalContextGroupEl.querySelector(".obsidian-codex-statusbar-menu") as HTMLDivElement;
+
     this.localUsageEl = containerEl.ownerDocument.createElement("div");
     this.localUsageEl.className = "obsidian-codex-statusbar-meta";
+
+    this.estimatedMeterEl = containerEl.ownerDocument.createElement("div");
+    this.estimatedMeterEl.className = "obsidian-codex-statusbar-meter";
+    this.estimatedMeterLabelEl = containerEl.ownerDocument.createElement("span");
+    this.estimatedMeterLabelEl.className = "obsidian-codex-statusbar-meter-label";
+    this.estimatedMeterTrackEl = containerEl.ownerDocument.createElement("span");
+    this.estimatedMeterTrackEl.className = "obsidian-codex-statusbar-meter-track";
+    this.estimatedMeterFillEl = containerEl.ownerDocument.createElement("span");
+    this.estimatedMeterFillEl.className = "obsidian-codex-statusbar-meter-fill";
+    this.estimatedMeterTrackEl.appendChild(this.estimatedMeterFillEl);
+    this.estimatedMeterEl.append(this.estimatedMeterLabelEl, this.estimatedMeterTrackEl);
 
     this.executionStateEl = containerEl.ownerDocument.createElement("div");
     this.executionStateEl.className = "obsidian-codex-statusbar-meta is-execution";
@@ -191,7 +154,9 @@ export class StatusBar {
     this.primaryEl.append(
       this.modelGroupEl,
       this.reasoningGroupEl,
+      this.externalContextGroupEl,
       this.executionStateEl,
+      this.estimatedMeterEl,
       this.localUsageEl,
       this.workingDirectoryEl
     );
@@ -201,6 +166,7 @@ export class StatusBar {
 
     this.rebuildModelMenu();
     this.rebuildReasoningMenu();
+    this.updateExternalContextState(this.externalContextStatus);
     this.updateContextUsage(this.currentContextUsage);
     this.updateModel(initialModel);
     this.updateReasoningEffort(initialReasoningEffort);
@@ -216,6 +182,9 @@ export class StatusBar {
       usage
     );
     this.localUsageEl.title = formatContextWindowTitle(this.currentModel, usage);
+    this.estimatedMeterLabelEl.textContent = formatEstimatedContextMeterLabel(usage);
+    this.estimatedMeterEl.title = formatEstimatedContextMeterTitle(usage);
+    this.estimatedMeterFillEl.style.width = `${String(getEstimatedContextMeterPercentage(usage))}%`;
   }
 
   updateModel(model: string): void {
@@ -239,6 +208,16 @@ export class StatusBar {
       : "No turn is running.";
     this.executionStateEl.classList.toggle("is-running", isRunning);
     this.rootEl.classList.toggle("is-running", isRunning);
+  }
+
+  updateExternalContextState(status: ExternalContextStatus): void {
+    this.externalContextStatus = status;
+    this.externalContextTriggerEl.textContent = `External ${String(status.fileCount)}`;
+    this.externalContextGroupEl.classList.toggle("is-hidden", !status.enabled || status.rootCount === 0);
+    this.externalContextGroupEl.title = status.enabled
+      ? `Allowed roots: ${String(status.rootCount)} · External files: ${String(status.fileCount)}`
+      : "External contexts are disabled in settings.";
+    this.rebuildExternalContextMenu();
   }
 
   updateYolo(enabled: boolean): void {
@@ -299,10 +278,32 @@ export class StatusBar {
     }
   }
 
+  private rebuildExternalContextMenu(): void {
+    this.externalContextMenuEl.replaceChildren();
+
+    this.externalContextMenuEl.appendChild(
+      this.createMenuItem("Add external file...", false, () => {
+        void this.callbacks.onAddExternalContext();
+      })
+    );
+
+    this.externalContextMenuEl.appendChild(
+      this.createMenuItem(
+        "Clear external files",
+        false,
+        () => {
+          void this.callbacks.onClearExternalContext();
+        },
+        this.externalContextStatus.fileCount === 0
+      )
+    );
+  }
+
   private createMenuItem(
     label: string,
     selected: boolean,
-    onSelect: () => void
+    onSelect: () => void,
+    disabled = false
   ): HTMLButtonElement {
     const itemEl = this.rootEl.ownerDocument.createElement("button");
     itemEl.type = "button";
@@ -311,6 +312,7 @@ export class StatusBar {
       itemEl.classList.add("is-selected");
     }
     itemEl.textContent = label;
+    itemEl.disabled = disabled;
     itemEl.addEventListener("click", onSelect);
     return itemEl;
   }

@@ -1,7 +1,10 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   buildInlineEditPrompt,
   buildInlineEditReview,
+  resolveInlineEditResponse,
   unwrapInlineEditResponse
 } from "../src/inline-edit";
 
@@ -42,6 +45,15 @@ describe("inline edit prompt builder", () => {
 });
 
 describe("inline edit response normalization", () => {
+  it("classifies clarification responses separately from editable content", () => {
+    expect(
+      resolveInlineEditResponse("<clarification>需要更明确的语气要求</clarification>")
+    ).toEqual({
+      kind: "clarification",
+      text: "需要更明确的语气要求"
+    });
+  });
+
   it("unwraps a single fenced block response", () => {
     expect(unwrapInlineEditResponse("```markdown\n改写后的内容\n```")).toBe("改写后的内容");
   });
@@ -84,5 +96,13 @@ describe("inline edit review model", () => {
       originalText: "",
       proposedText: "新增段落"
     });
+  });
+});
+
+describe("inline edit controller source", () => {
+  it("prefers sidebar clarification feedback before falling back to notices", () => {
+    const source = readFileSync(resolve(__dirname, "../src/inline-edit-controller.ts"), "utf8");
+
+    expect(source).toContain("plugin.getActiveChatView()?.showInlineEditClarification(generationResult.text)");
   });
 });

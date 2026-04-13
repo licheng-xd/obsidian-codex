@@ -11,6 +11,7 @@ describe("plugin-state", () => {
     expect(persisted.settings.model).toBe("gpt-5.4");
     expect(persisted.recentSessions).toEqual([]);
     expect(persisted.activeSessionId).toBeNull();
+    expect(persisted.draftPersistentContextItems).toEqual([]);
   });
 
   it("reads the persisted session history when present", () => {
@@ -56,6 +57,40 @@ describe("plugin-state", () => {
     expect(persisted.recentSessions[0]?.entries).toHaveLength(2);
     expect(persisted.recentSessions[0]?.updatedAt).toBe(1_710_000_000_000);
     expect(persisted.recentSessions[0]?.contextUsage.threadCharsUsedEstimate).toBe(1200);
+  });
+
+  it("reads draft persistent context items when present", () => {
+    const persisted = readPersistedPluginData({
+      settings: {
+        externalContextRootsEnabled: true,
+        persistentExternalContextRoots: ["/Users/demo/projects"]
+      },
+      draftPersistentContextItems: [
+        {
+          kind: "vault-file",
+          path: "notes/draft.md"
+        },
+        {
+          kind: "external-file",
+          path: "/Users/demo/projects/specs/outside.md"
+        },
+        {
+          kind: "external-file",
+          path: "/tmp/outside.md"
+        }
+      ]
+    });
+
+    expect(persisted.draftPersistentContextItems).toEqual([
+      {
+        kind: "vault-file",
+        path: "notes/draft.md"
+      },
+      {
+        kind: "external-file",
+        path: "/Users/demo/projects/specs/outside.md"
+      }
+    ]);
   });
 
   it("normalizes legacy raw titles in persisted recent sessions", () => {
@@ -128,7 +163,11 @@ describe("plugin-state", () => {
         skipGitRepoCheck: false,
         includeActiveNoteContext: false,
         reasoningEffort: "medium",
-        yoloMode: false
+        yoloMode: false,
+        userName: "",
+        customInstructions: "",
+        externalContextRootsEnabled: true,
+        persistentExternalContextRoots: ["/Users/demo/projects"]
       },
       [
         {
@@ -145,12 +184,32 @@ describe("plugin-state", () => {
           persistentContextItems: []
         }
       ],
-      "thread-456"
+      "thread-456",
+      [
+        {
+          kind: "vault-file",
+          path: "notes/draft.md"
+        },
+        {
+          kind: "external-file",
+          path: "/Users/demo/projects/specs/plan.md"
+        }
+      ]
     );
 
     expect(persisted.activeSessionId).toBe("thread-456");
     expect(persisted.recentSessions).toHaveLength(1);
     expect(persisted.recentSessions[0]?.title).toBe("hello again");
     expect(persisted.recentSessions[0]?.updatedAt).toBe(1_710_000_000_999);
+    expect(persisted.draftPersistentContextItems).toEqual([
+      {
+        kind: "vault-file",
+        path: "notes/draft.md"
+      },
+      {
+        kind: "external-file",
+        path: "/Users/demo/projects/specs/plan.md"
+      }
+    ]);
   });
 });

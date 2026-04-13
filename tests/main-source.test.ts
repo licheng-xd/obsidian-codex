@@ -32,4 +32,10 @@ describe("main source", () => {
     expect(source).not.toContain("onunload()");
     expect(source).not.toContain("async onunload()");
   });
+
+  it("exposes the current chat view for cross-feature sidebar feedback", () => {
+    const source = readFileSync(resolve(__dirname, "../src/main.ts"), "utf8");
+
+    expect(source).toContain("getActiveChatView(): ChatView | null {");
+  });
 });

@@ -5,8 +5,7 @@ describe("formatContextSummary", () => {
   it("shows only the vault root line", () => {
     expect(
       formatContextSummary({
-        vaultRootPath: "/Users/licheng/Vault",
-        activeNotePath: "notes/today.md"
+        vaultRootPath: "/Users/licheng/Vault"
       })
     ).toBe("Vault root: /Users/licheng/Vault");
   });
@@ -15,48 +14,61 @@ describe("formatContextSummary", () => {
     expect(formatContextSummary({})).toBe("Vault root: Unavailable");
   });
 
-  it("ignores current note and selection details in compact mode", () => {
+  it("shows current note and selection details when present", () => {
     expect(
       formatContextSummary({
         vaultRootPath: "/vault",
         activeNotePath: "doc.md",
         selectionText: "hello"
       })
-    ).toBe("Vault root: /vault");
+    ).toBe("Vault root: /vault\nNote: doc.md\nSelection: Yes");
   });
 
-  it("shows reference and image attachment counts when present", () => {
+  it("shows session, missing, turn, and image counts when present", () => {
     expect(
       formatContextSummary({
         vaultRootPath: "/vault",
-        referencedFileCount: 2,
+        sessionStateLabel: "Draft session",
+        sessionContextCount: 2,
+        missingSessionContextCount: 1,
+        turnFileCount: 3,
         imageAttachmentCount: 1
       })
-    ).toBe("Vault root: /vault\nRefs: 2\nImages: 1");
+    ).toBe("Vault root: /vault\nSession: Draft session\nSession refs: 2\nMissing refs: 1\nTurn files: 3\nImages: 1");
   });
 });
 
 describe("getContextSummaryLines", () => {
-  it("returns only the vault root row for tray rendering", () => {
+  it("includes note and selection rows when present", () => {
     expect(
       getContextSummaryLines({
         vaultRootPath: "/Users/licheng/Vault",
         activeNotePath: "notes/today.md",
         selectionText: "hello"
       })
-    ).toEqual([{ label: "Vault root", value: "/Users/licheng/Vault" }]);
+    ).toEqual([
+      { label: "Vault root", value: "/Users/licheng/Vault" },
+      { label: "Note", value: "notes/today.md" },
+      { label: "Selection", value: "Yes" }
+    ]);
   });
 
-  it("appends attachment counters after the vault root", () => {
+  it("appends session, missing, turn, and image counters after the vault root", () => {
     expect(
       getContextSummaryLines({
         vaultRootPath: "/Users/licheng/Vault",
-        referencedFileCount: 3,
+        sessionStateLabel: "Saved session",
+        sessionContextCount: 3,
+        missingSessionContextCount: 1,
+        turnFileCount: 2,
         imageAttachmentCount: 1
       })
     ).toEqual([
       { label: "Vault root", value: "/Users/licheng/Vault" },
-      { label: "Refs", value: "3" },
+      { label: "Session", value: "Saved session" },
+      { label: "Session refs", value: "3" },
+      { label: "Missing refs", value: "1" },
+      { label: "Turn files", value: "2" },
       { label: "Images", value: "1" }
     ]);
   });

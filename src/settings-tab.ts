@@ -20,6 +20,38 @@ export class ObsidianCodexSettingTab extends PluginSettingTab {
     const { containerEl } = this;
     containerEl.empty();
 
+    containerEl.createEl("h3", { text: "Identity" });
+
+    new Setting(containerEl)
+      .setName("Your name")
+      .setDesc("Optional. Only affects future chat turns in the main sidebar chat prompt. Does not rename history or change past sessions.")
+      .addText((text) => {
+        text
+          .setPlaceholder("e.g. Alice")
+          .setValue(this.plugin.settings.userName)
+          .onChange(async (value) => {
+            await this.savePatchedSettings({ userName: value });
+          });
+      });
+
+    new Setting(containerEl)
+      .setName("Custom instructions")
+      .setDesc(
+        "Appended to the main chat system prompt for future turns. Use this for tone or recurring preferences. Does not replace @-attached files, pinned context, or active note context."
+      )
+      .addTextArea((textarea) => {
+        textarea
+          .setPlaceholder("e.g. Always respond in Chinese. Prefer concise answers and Obsidian wikilinks.")
+          .setValue(this.plugin.settings.customInstructions)
+          .onChange(async (value) => {
+            await this.savePatchedSettings({ customInstructions: value });
+          });
+        textarea.inputEl.rows = 4;
+        textarea.inputEl.style.width = "100%";
+      });
+
+    containerEl.createEl("h3", { text: "Runtime" });
+
     new Setting(containerEl)
       .setName("Path to codex")
       .setDesc("Optional absolute path to the codex executable. Leave empty to use the shell path.")
@@ -73,6 +105,38 @@ export class ObsidianCodexSettingTab extends PluginSettingTab {
         toggle.setValue(this.plugin.settings.includeActiveNoteContext).onChange(async (value) => {
           await this.savePatchedSettings({ includeActiveNoteContext: value });
         });
+      });
+
+    new Setting(containerEl)
+      .setName("Enable external contexts")
+      .setDesc(
+        "Allow explicit external file references from configured roots. Disabled by default because this expands readable paths beyond the vault."
+      )
+      .addToggle((toggle) => {
+        toggle.setValue(this.plugin.settings.externalContextRootsEnabled).onChange(async (value) => {
+          await this.savePatchedSettings({ externalContextRootsEnabled: value });
+        });
+      });
+
+    new Setting(containerEl)
+      .setName("Allowed external roots")
+      .setDesc(
+        "Only absolute directories are accepted, one per line. Nested duplicates are collapsed automatically. Files still need to be added explicitly from the status bar."
+      )
+      .addTextArea((textarea) => {
+        textarea
+          .setPlaceholder("/Users/you/projects\n/Users/you/research")
+          .setValue(this.plugin.settings.persistentExternalContextRoots.join("\n"))
+          .onChange(async (value) => {
+            await this.savePatchedSettings({
+              persistentExternalContextRoots: value
+                .split(/\r?\n/)
+                .map((line) => line.trim())
+                .filter(Boolean)
+            });
+          });
+        textarea.inputEl.rows = 3;
+        textarea.inputEl.style.width = "100%";
       });
 
     new Setting(containerEl)

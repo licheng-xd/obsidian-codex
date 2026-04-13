@@ -10,6 +10,10 @@ describe("shouldSubmitFromKeydown", () => {
     expect(shouldSubmitFromKeydown({ key: "Enter" })).toBe(true);
   });
 
+  it("submits on bare NumpadEnter as the same intent", () => {
+    expect(shouldSubmitFromKeydown({ key: "NumpadEnter" })).toBe(true);
+  });
+
   it("does not submit on Command/Ctrl+Enter so newline can be inserted", () => {
     expect(shouldSubmitFromKeydown({ key: "Enter", metaKey: true })).toBe(false);
     expect(shouldSubmitFromKeydown({ key: "Enter", ctrlKey: true })).toBe(false);
@@ -18,6 +22,7 @@ describe("shouldSubmitFromKeydown", () => {
   it("treats Command/Ctrl+Enter as an explicit line break", () => {
     expect(shouldInsertLineBreakFromKeydown({ key: "Enter", metaKey: true })).toBe(true);
     expect(shouldInsertLineBreakFromKeydown({ key: "Enter", ctrlKey: true })).toBe(true);
+    expect(shouldInsertLineBreakFromKeydown({ key: "NumpadEnter", ctrlKey: true })).toBe(true);
     expect(shouldInsertLineBreakFromKeydown({ key: "Enter", metaKey: true, shiftKey: true })).toBe(false);
   });
 

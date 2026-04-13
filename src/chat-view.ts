@@ -10,7 +10,10 @@ import {
   setIcon
 } from "obsidian";
 import type { ThreadOptions } from "@openai/codex-sdk";
+import { statSync } from "node:fs";
+import { readFile, stat } from "node:fs/promises";
 import * as nodePath from "node:path";
+import { formatCurrentLocalDate, type MainAgentPromptContext } from "./prompt";
 import {
   insertTextAtSelection,
   shouldInsertLineBreakFromKeydown,
@@ -59,6 +62,10 @@ import {
   summarizeAssistantSystemEvents,
   type SummarizableAssistantEvent
 } from "./event-summary";
+import {
+  isWithinExternalContextRoots,
+  normalizeExternalContextPath
+} from "./external-contexts";
 import { enhanceRenderedAssistantLinks } from "./assistant-link-opener";
 import type ObsidianCodexPlugin from "./main";
 import { findActiveMentionQuery } from "./mention-query";
@@ -131,6 +138,11 @@ interface MentionState {
   candidates: string[];
 }
 
+interface ResolvedPersistentContextState {
+  items: NonNullable<ContextInput["persistentContextItems"]>;
+  missingPaths: string[];
+}
+
 function normalizeAttachmentPath(path: string): string {
   return path.replaceAll("\\", "/");
 }
@@ -156,6 +168,8 @@ function formatAttachmentSize(sizeBytes: number): string {
 export class ChatView extends ItemView {
   private emptyStateEl!: HTMLDivElement;
   private messagesEl!: HTMLDivElement;
+  private inlineEditClarificationEl!: HTMLDivElement;
+  private inlineEditClarificationMessageEl!: HTMLDivElement;
   private inputEl!: HTMLTextAreaElement;
   private mentionDropdownEl!: HTMLDivElement;
   private attachmentStripEl!: HTMLDivElement;
@@ -264,6 +278,8 @@ export class ChatView extends ItemView {
       cleanupSentComposerDraft: (attachments) => this.cleanupSentComposerDraft(attachments),
       saveSessionHistory: async (recentSessions, activeSessionId) =>
         await this.plugin.saveSessionHistory([...recentSessions], activeSessionId),
+      saveDraftPersistentContext: async (draftPersistentContextItems) =>
+        await this.plugin.saveDraftPersistentContext(draftPersistentContextItems),
       updateContextSummary: async () => await this.updateContextSummary(),
       showNotice: (message, timeout) => {
         new Notice(message, timeout);
@@ -287,10 +303,17 @@ export class ChatView extends ItemView {
     this.render();
     this.recentSessions = [...this.plugin.recentSessions];
     this.activeSessionId = this.plugin.activeSessionId;
+    this.persistentContextItems = this.activeSessionId
+      ? []
+      : [...this.plugin.draftPersistentContextItems];
+    this.updateComposerState();
     this.renderHistorySessionList();
     await this.runtimeController.restoreActiveSession();
     void this.updateContextSummary();
     this.registerEvent(this.app.workspace.on("active-leaf-change", () => void this.updateContextSummary()));
+    this.registerEvent(this.app.vault.on("create", () => this.refreshContextIndicators()));
+    this.registerEvent(this.app.vault.on("rename", () => this.refreshContextIndicators()));
+    this.registerEvent(this.app.vault.on("delete", () => this.refreshContextIndicators()));
     this.registerDomEvent(document, "selectionchange", () => this.scheduleContextSummaryUpdate());
     this.registerDomEvent(document, "mousedown", (event: MouseEvent) => {
       const target = event.target;
@@ -375,11 +398,23 @@ export class ChatView extends ItemView {
     );
 
     const trayEl = contentEl.createDiv({ cls: "obsidian-codex-tray" });
+    this.inlineEditClarificationEl = trayEl.createDiv({ cls: "obsidian-codex-inline-edit-clarification" });
+    this.inlineEditClarificationMessageEl = this.inlineEditClarificationEl.createDiv({
+      cls: "obsidian-codex-inline-edit-clarification-message"
+    });
+    const inlineEditClarificationDismissEl = this.inlineEditClarificationEl.createEl("button", {
+      cls: "obsidian-codex-inline-edit-clarification-dismiss",
+      text: "Dismiss"
+    });
+    inlineEditClarificationDismissEl.type = "button";
+    inlineEditClarificationDismissEl.addEventListener("click", () => this.clearInlineEditClarification());
+    this.inlineEditClarificationMessageEl.textContent = "";
+
     const inputShellEl = trayEl.createDiv({ cls: "obsidian-codex-input-shell" });
     this.inputEl = inputShellEl.createEl("textarea", {
       cls: "obsidian-codex-input"
     });
-    this.inputEl.placeholder = "Type a prompt";
+    this.inputEl.placeholder = "How can I help you today?";
     this.inputEl.rows = 4;
 
     this.registerDomEvent(this.inputEl, "focus", () => void this.updateContextSummary());
@@ -418,8 +453,8 @@ export class ChatView extends ItemView {
 
       if (shouldSubmitFromKeydown(keyInput)) {
         event.preventDefault();
-        if (this.inputEl.value.trim() === "/clear-context") {
-          void this.handleClearContextSlashCommand();
+        if (this.inputEl.value.trim().startsWith("/")) {
+          void this.tryHandleSlashCommand(this.inputEl.value);
           return;
         }
         void this.runtimeController.handleSend();
@@ -467,11 +502,22 @@ export class ChatView extends ItemView {
           this.plugin.settings = toggleYoloMode(this.plugin.settings, enabled);
           await this.plugin.saveSettings();
           this.statusBar?.updateYolo(this.plugin.settings.yoloMode);
+        },
+        onAddExternalContext: async () => {
+          await this.promptAndAddExternalContext();
+        },
+        onClearExternalContext: async () => {
+          await this.clearExternalPersistentContext();
         }
       }
     );
     this.statusBar.updateContextUsage(this.contextUsage);
     this.statusBar.updateWorkingDirectory(this.getVaultRootPath());
+    this.statusBar.updateExternalContextState({
+      enabled: this.plugin.settings.externalContextRootsEnabled,
+      rootCount: this.getAllowedExternalRoots().length,
+      fileCount: this.getExternalPersistentContextCount()
+    });
     this.refreshCanvasState();
     this.updateComposerState();
   }
@@ -517,6 +563,16 @@ export class ChatView extends ItemView {
     this.setHistoryPopoverOpen(true);
   }
 
+  showInlineEditClarification(message: string): void {
+    this.inlineEditClarificationMessageEl.textContent = message;
+    this.inlineEditClarificationEl.classList.add("is-visible");
+  }
+
+  clearInlineEditClarification(): void {
+    this.inlineEditClarificationMessageEl.textContent = "";
+    this.inlineEditClarificationEl.classList.remove("is-visible");
+  }
+
   async pinCurrentNote(): Promise<void> {
     const file = this.app.workspace.getActiveFile();
     if (!(file instanceof TFile) || file.extension.toLowerCase() !== "md") {
@@ -540,6 +596,78 @@ export class ChatView extends ItemView {
         : "Current note is already in session context.",
       4000
     );
+  }
+
+  private getAllowedExternalRoots(): string[] {
+    return this.plugin.settings.externalContextRootsEnabled
+      ? this.plugin.settings.persistentExternalContextRoots
+      : [];
+  }
+
+  private getExternalPersistentContextCount(): number {
+    return this.persistentContextItems.filter((item) => item.kind === "external-file").length;
+  }
+
+  private async promptAndAddExternalContext(): Promise<void> {
+    const allowedRoots = this.getAllowedExternalRoots();
+    if (!this.plugin.settings.externalContextRootsEnabled || allowedRoots.length === 0) {
+      new Notice("External contexts are disabled or have no allowed roots configured.", 5000);
+      return;
+    }
+
+    const requestedPath = window.prompt("Absolute file path under an allowed external root");
+    if (!requestedPath) {
+      return;
+    }
+
+    const normalizedPath = normalizeExternalContextPath(requestedPath);
+    if (!isWithinExternalContextRoots(normalizedPath, allowedRoots)) {
+      new Notice("That file is outside the allowed external roots.", 5000);
+      return;
+    }
+
+    try {
+      const fileStat = await stat(normalizedPath);
+      if (!fileStat.isFile()) {
+        new Notice("External context path must point to a file.", 5000);
+        return;
+      }
+    } catch {
+      new Notice("External context file does not exist.", 5000);
+      return;
+    }
+
+    const nextItems = addPersistentContextItem(this.persistentContextItems, {
+      kind: "external-file",
+      path: normalizedPath
+    });
+    const changed = nextItems.length !== this.persistentContextItems.length;
+    this.persistentContextItems = nextItems;
+    this.updateComposerState();
+    await this.runtimeController.persistActiveSession();
+    await this.updateContextSummary();
+    new Notice(
+      changed
+        ? "Added external file to session context."
+        : "That external file is already in session context.",
+      4000
+    );
+    this.inputEl.focus();
+  }
+
+  private async clearExternalPersistentContext(): Promise<void> {
+    const nextItems = this.persistentContextItems.filter((item) => item.kind !== "external-file");
+    if (nextItems.length === this.persistentContextItems.length) {
+      new Notice("No external files in session context.", 4000);
+      return;
+    }
+
+    this.persistentContextItems = nextItems;
+    this.updateComposerState();
+    await this.runtimeController.persistActiveSession();
+    await this.updateContextSummary();
+    new Notice("Cleared external files from session context.", 4000);
+    this.inputEl.focus();
   }
 
   private renderHistorySessionList(): void {
@@ -832,23 +960,32 @@ export class ChatView extends ItemView {
 
   private renderAttachmentStrip(): void {
     this.attachmentStripEl.replaceChildren();
-    const hasPersistentContext = this.persistentContextItems.length > 0;
+    const hasSessionContext = this.persistentContextItems.length > 0;
     const hasTurnAttachments = this.attachments.length > 0;
-    this.attachmentStripEl.classList.toggle("is-empty", !hasPersistentContext && !hasTurnAttachments);
-    if (!hasPersistentContext && !hasTurnAttachments) {
+    this.attachmentStripEl.classList.toggle("is-empty", !hasSessionContext && !hasTurnAttachments);
+
+    if (!hasSessionContext && !hasTurnAttachments) {
       return;
     }
 
-    if (hasPersistentContext) {
-      const sectionEl = this.attachmentStripEl.createDiv({ cls: "obsidian-codex-context-section is-session" });
-      sectionEl.createDiv({
+    if (hasSessionContext) {
+      const sessionSectionEl = this.attachmentStripEl.createDiv({ cls: "obsidian-codex-context-section is-session" });
+      const sessionHeadingRowEl = sessionSectionEl.createDiv({ cls: "obsidian-codex-context-heading-row" });
+      sessionHeadingRowEl.createDiv({
         cls: "obsidian-codex-context-heading",
         text: "Session context"
       });
+      sessionHeadingRowEl.createDiv({
+        cls: "obsidian-codex-context-status",
+        text: this.getSessionContextStateLabel()
+      });
 
       for (const item of this.persistentContextItems) {
-        const chipEl = sectionEl.createDiv({
-          cls: "obsidian-codex-attachment-chip"
+        const itemMetaText = this.getPersistentContextItemMetaText(item);
+        const isExternal = item.kind === "external-file";
+        const isMissing = this.isPersistentContextItemMissing(item.path);
+        const chipEl = sessionSectionEl.createDiv({
+          cls: `obsidian-codex-attachment-chip${isExternal ? " is-external" : ""}${isMissing ? " is-missing" : ""}`
         });
         const bodyEl = chipEl.createDiv({ cls: "obsidian-codex-attachment-body" });
         bodyEl.createDiv({
@@ -857,7 +994,7 @@ export class ChatView extends ItemView {
         });
         bodyEl.createDiv({
           cls: "obsidian-codex-attachment-meta",
-          text: item.path
+          text: isMissing ? this.getPersistentContextItemUnavailableText(item) : itemMetaText
         });
 
         const removeButtonEl = chipEl.createEl("button", {
@@ -872,7 +1009,7 @@ export class ChatView extends ItemView {
         });
       }
 
-      const clearButtonEl = sectionEl.createEl("button", {
+      const clearButtonEl = sessionSectionEl.createEl("button", {
         cls: "obsidian-codex-context-clear",
         text: "Clear"
       });
@@ -884,14 +1021,14 @@ export class ChatView extends ItemView {
     }
 
     if (hasTurnAttachments) {
-      const sectionEl = this.attachmentStripEl.createDiv({ cls: "obsidian-codex-context-section is-turn" });
-      sectionEl.createDiv({
+      const turnSectionEl = this.attachmentStripEl.createDiv({ cls: "obsidian-codex-context-section is-turn" });
+      turnSectionEl.createDiv({
         cls: "obsidian-codex-context-heading",
         text: "This turn"
       });
 
       for (const attachment of this.attachments) {
-        const chipEl = sectionEl.createDiv({
+        const chipEl = turnSectionEl.createDiv({
           cls: `obsidian-codex-attachment-chip${attachment.kind === "pasted-image" ? " is-image" : ""}`
         });
         const bodyEl = chipEl.createDiv({ cls: "obsidian-codex-attachment-body" });
@@ -1106,6 +1243,11 @@ export class ChatView extends ItemView {
     this.inputEl.disabled = this.isSending;
     this.renderMentionDropdown();
     this.renderAttachmentStrip();
+    this.statusBar?.updateExternalContextState({
+      enabled: this.plugin.settings.externalContextRootsEnabled,
+      rootCount: this.getAllowedExternalRoots().length,
+      fileCount: this.getExternalPersistentContextCount()
+    });
   }
 
   private refreshCanvasState(): void {
@@ -1157,6 +1299,7 @@ export class ChatView extends ItemView {
     this.setHistoryPopoverOpen(false);
     this.renderHistorySessionList();
     void this.plugin.setActiveSession(draftState.activeSessionId);
+    void this.plugin.saveDraftPersistentContext([]);
     void this.updateContextSummary();
   }
 
@@ -1331,11 +1474,57 @@ export class ChatView extends ItemView {
     return resolvedAttachments;
   }
 
-  private async resolvePersistentContextItems(): Promise<ContextInput["persistentContextItems"]> {
+  private isPersistentContextItemMissing(path: string): boolean {
+    const item = this.persistentContextItems.find((candidate) => candidate.path === path);
+    if (item?.kind === "external-file") {
+      if (!isWithinExternalContextRoots(path, this.getAllowedExternalRoots())) {
+        return true;
+      }
+
+      try {
+        return !statSync(path).isFile();
+      } catch {
+        return true;
+      }
+    }
+
+    return !(this.app.vault.getAbstractFileByPath(path) instanceof TFile);
+  }
+
+  private getMissingPersistentContextCount(): number {
+    return this.persistentContextItems.filter((item) => this.isPersistentContextItemMissing(item.path)).length;
+  }
+
+  private async resolvePersistentContextItems(): Promise<ResolvedPersistentContextState> {
     const resolvedItems: NonNullable<ContextInput["persistentContextItems"]> = [];
+    const missingPaths: string[] = [];
     for (const item of this.persistentContextItems) {
+      if (item.kind === "external-file") {
+        if (!isWithinExternalContextRoots(item.path, this.getAllowedExternalRoots())) {
+          missingPaths.push(item.path);
+          continue;
+        }
+
+        try {
+          const fileStat = await stat(item.path);
+          if (!fileStat.isFile()) {
+            missingPaths.push(item.path);
+            continue;
+          }
+
+          resolvedItems.push({
+            ...item,
+            content: await readFile(item.path, "utf8")
+          });
+        } catch {
+          missingPaths.push(item.path);
+        }
+        continue;
+      }
+
       const file = this.app.vault.getAbstractFileByPath(item.path);
       if (!(file instanceof TFile)) {
+        missingPaths.push(item.path);
         continue;
       }
 
@@ -1345,7 +1534,10 @@ export class ChatView extends ItemView {
       });
     }
 
-    return resolvedItems;
+    return {
+      items: resolvedItems,
+      missingPaths
+    };
   }
 
   private async updateContextSummary(): Promise<void> {
@@ -1359,11 +1551,19 @@ export class ChatView extends ItemView {
     };
     this.statusBar?.updateContextUsage(this.contextUsage);
     this.statusBar?.updateWorkingDirectory(this.getVaultRootPath());
+    this.statusBar?.updateExternalContextState({
+      enabled: this.plugin.settings.externalContextRootsEnabled,
+      rootCount: this.getAllowedExternalRoots().length,
+      fileCount: this.getExternalPersistentContextCount()
+    });
     this.inputEl.title = formatContextSummary({
       vaultRootPath: this.getVaultRootPath(),
       activeNotePath: context.activeNotePath,
       selectionText: context.selectionText,
-      referencedFileCount: (context.persistentContextItems?.length ?? 0) + attachmentCounts["vault-file"],
+      sessionStateLabel: this.getSessionContextStateLabel(),
+      sessionContextCount: this.persistentContextItems.length,
+      missingSessionContextCount: this.getMissingPersistentContextCount(),
+      turnFileCount: attachmentCounts["vault-file"],
       imageAttachmentCount: attachmentCounts["pasted-image"]
     });
   }
@@ -1381,6 +1581,15 @@ export class ChatView extends ItemView {
       window.clearTimeout(this.selectionChangeTimer);
       this.selectionChangeTimer = null;
     }
+  }
+
+  private refreshContextIndicators(): void {
+    this.renderAttachmentStrip();
+    void this.updateContextSummary();
+  }
+
+  private getSessionContextStateLabel(): string {
+    return this.activeSessionId ? "Saved session" : "Draft session";
   }
 
   private buildThreadOptions(): ThreadOptions {
@@ -1536,12 +1745,32 @@ export class ChatView extends ItemView {
     });
   }
 
+  private buildSystemPromptContext(): MainAgentPromptContext {
+    const vaultName = this.app.vault.getName();
+    return {
+      userName: this.plugin.settings.userName || undefined,
+      currentDate: formatCurrentLocalDate(new Date()),
+      vaultName: vaultName || undefined,
+      customInstructions: this.plugin.settings.customInstructions || undefined
+    };
+  }
+
   private async collectContext(userInput: string): Promise<ContextInput> {
     const markdownView = this.app.workspace.getActiveViewOfType(MarkdownView);
     const file = markdownView?.file ?? this.app.workspace.getActiveFile() ?? undefined;
     const activeNotePath = file?.path;
     const saveTargetPlan = await this.buildSaveTargetPlan(userInput, activeNotePath);
-    const persistentContextItems = await this.resolvePersistentContextItems();
+    const persistentContextState = await this.resolvePersistentContextItems();
+    const persistentContextItems = persistentContextState.items;
+    const systemPromptContext = this.buildSystemPromptContext();
+
+    if (userInput.trim() && persistentContextState.missingPaths.length > 0) {
+      const missingCount = persistentContextState.missingPaths.length;
+      new Notice(
+        `Skipped ${missingCount} missing session context file${missingCount === 1 ? "" : "s"}.`,
+        6000
+      );
+    }
 
     if (markdownView?.editor && file) {
       const selectionText = markdownView.editor.getSelection() || undefined;
@@ -1552,7 +1781,8 @@ export class ChatView extends ItemView {
         selectionText,
         persistentContextItems,
         attachments: await this.resolveContextAttachments(),
-        saveTargetPlan
+        saveTargetPlan,
+        systemPromptContext
       };
 
       return this.plugin.settings.includeActiveNoteContext
@@ -1567,7 +1797,8 @@ export class ChatView extends ItemView {
         activeNoteContent: await this.app.vault.cachedRead(file),
         persistentContextItems,
         attachments: await this.resolveContextAttachments(),
-        saveTargetPlan
+        saveTargetPlan,
+        systemPromptContext
       };
 
       return this.plugin.settings.includeActiveNoteContext
@@ -1579,7 +1810,8 @@ export class ChatView extends ItemView {
       userInput,
       persistentContextItems,
       attachments: await this.resolveContextAttachments(),
-      saveTargetPlan
+      saveTargetPlan,
+      systemPromptContext
     };
   }
 
@@ -1589,7 +1821,24 @@ export class ChatView extends ItemView {
     this.updateComposerState();
     await this.runtimeController.persistActiveSession();
     await this.updateContextSummary();
+    new Notice(`Removed ${getAttachmentBasename(path)} from session context.`, 4000);
     this.inputEl.focus();
+  }
+
+  private getPersistentContextItemMetaText(item: PersistentContextItem): string {
+    if (item.kind === "external-file") {
+      return `External file · ${item.path}`;
+    }
+
+    return item.path;
+  }
+
+  private getPersistentContextItemUnavailableText(item: PersistentContextItem): string {
+    if (item.kind === "external-file") {
+      return `External file · ${item.path} · Unavailable`;
+    }
+
+    return `${item.path} · Missing from vault`;
   }
 
   private async clearPersistentContext(feedback: string): Promise<void> {
@@ -1604,8 +1853,66 @@ export class ChatView extends ItemView {
     this.inputEl.focus();
   }
 
+  private formatSlashCommandHelp(): string {
+    return [
+      "Available commands:",
+      "/help",
+      "/pin-current-note",
+      "/context-status",
+      "/clear-context"
+    ].join("\n");
+  }
+
+  private formatContextStatusMessage(): string {
+    const sessionState = this.activeSessionId ? "Saved session" : "Draft session";
+    const sessionRefs = this.persistentContextItems.length;
+    const missingRefs = this.getMissingPersistentContextCount();
+    const turnFiles = this.attachments.filter((attachment) => attachment.kind === "vault-file").length;
+    const images = this.attachments.filter((attachment) => attachment.kind === "pasted-image").length;
+
+    return [
+      sessionState,
+      `Session refs: ${sessionRefs}`,
+      `Missing refs: ${missingRefs}`,
+      `Turn files: ${turnFiles}`,
+      `Images: ${images}`
+    ].join("\n");
+  }
+
+  private async tryHandleSlashCommand(input: string): Promise<boolean> {
+    const command = input.trim().toLowerCase();
+    if (!command.startsWith("/")) {
+      return false;
+    }
+
+    switch (command) {
+      case "/help":
+        new Notice(this.formatSlashCommandHelp(), 8000);
+        this.inputEl.value = "";
+        this.updateComposerState();
+        return true;
+      case "/pin-current-note":
+        this.inputEl.value = "";
+        this.updateComposerState();
+        await this.pinCurrentNote();
+        return true;
+      case "/context-status":
+        new Notice(this.formatContextStatusMessage(), 8000);
+        this.inputEl.value = "";
+        this.updateComposerState();
+        return true;
+      case "/clear-context":
+        await this.handleClearContextSlashCommand();
+        return true;
+      default:
+        new Notice(`Unknown command: ${command}`, 5000);
+        return true;
+    }
+  }
+
   private async handleClearContextSlashCommand(): Promise<void> {
     await this.clearPersistentContext("Cleared session context.");
     this.inputEl.value = "";
+    this.updateComposerState();
   }
 }

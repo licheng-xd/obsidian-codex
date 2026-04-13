@@ -13,21 +13,26 @@
 - 在输入框里通过 `@` 把 Vault 内 Markdown 文件加入当前会话的显式上下文
 - `Pin current note`：把当前活动 Markdown 笔记加入当前会话的显式上下文
 - `/clear-context`：只清空当前会话的显式上下文
+- 最小 slash commands：`/help`、`/pin-current-note`、`/context-status`、`/clear-context`
 - 在输入框里直接粘贴图片作为本轮附件
+- 底部状态栏支持 `Model`、`Reasoning effort`、`Estimated context` 和安全版 `External` 入口
 
 当前附件能力的边界：
 
 - `@引用` 和 `Pin current note` 只支持当前 Vault 内 Markdown 文件
+- `External` 只支持设置里显式允许的绝对目录根下的文件，并且仍需逐个手动添加
 - 单个会话最多保留 5 个显式文件上下文
+- `Session context` 会显示当前是 `Draft session` 还是 `Saved session`
 - 当前笔记 / 当前选区仍然只在本轮发送时注入，不会自动持久化
 - 图片只支持粘贴，不支持拖拽、外链和外部目录
 - 单轮最多附加 3 张图片
 - 粘贴图片会先写入 Vault 配置目录下的 `plugins/codexian/.cache/pasted-images/`
-- 当前没有支持外部目录上下文、MCP context 或 provider 化上下文系统
+- 当前没有支持整目录自动注入、MCP context 或 provider 化上下文系统
 - 当前仍然是单侧栏模型，不支持多 tab
 - `New session` 只重置当前会话，不会清空最近会话列表
 - inline edit 当前只支持单选区或单光标，不支持多段批量编辑
 - inline edit 结果在应用前会先预览；如果等待期间文档已变化，需要重新运行
+- inline edit 如果需要澄清，会优先在侧栏 tray 区显示提示；无侧栏时退回 Notice
 
 ## 运行要求
 
@@ -45,6 +50,7 @@
 - 插件本身不包含遥测、广告或付费墙
 - 联网行为主要由本机 Codex CLI 执行，用于访问 OpenAI 及其调用链路需要的网络资源
 - 插件会读取你显式提供给当前会话的本地上下文，包括当前笔记、当前选区、会话级 `@` 引用文件、`Pin current note` 和粘贴图片附件
+- 如果你启用了 `External contexts`，插件还会读取你手动加入且位于允许目录根下的外部文件
 - 粘贴图片会写入 Vault 配置目录下的插件缓存目录 `plugins/codexian/.cache/pasted-images/`，默认配置目录通常是 `.obsidian`
 - `YOLO mode` 为显式高风险开关，开启后会把审批策略设为 `never`，并允许更高权限的本地执行
 
@@ -89,7 +95,9 @@
 2. 打开 Obsidian，执行命令 `Verify runtime`
 3. 如果插件找不到 `codex`，把 `command -v codex` 返回的绝对路径填进设置里的 `Codex path`
 4. 按需设置 `Model` 和 `Reasoning effort`
-5. 只有在你完全信任当前 Vault 和本机环境时，再开启 `YOLO mode`
+5. 如需跨 Vault 边界引用文件，先开启 `Enable external contexts`，再把允许的绝对目录填进 `Allowed external roots`
+6. `Your name` 和 `Custom instructions` 只影响未来聊天回合的主 prompt，不会改写历史会话，也不会替代 `@文件`、pin 上下文或当前笔记上下文
+7. 只有在你完全信任当前 Vault 和本机环境时，再开启 `YOLO mode`
 
 ## 常用命令
 
@@ -100,6 +108,18 @@
 - `Pin current note`
 - `Inline edit selection`
 - `Inline insert at cursor`
+
+输入框 slash commands：
+
+- `/help`：显示可用命令
+- `/pin-current-note`：把当前笔记加入 session context
+- `/context-status`：显示当前草稿/会话状态、session refs、缺失 refs 和本轮附件数量
+- `/clear-context`：清空当前 session context
+
+底部状态栏：
+
+- `Estimated context` 是基于可见历史和本地上下文计算的估算值，不是 Codex SDK 返回的权威 thread window 百分比
+- `External` 入口只会在 settings 显式开启并配置允许目录根后出现，用于把单个外部文件加入当前 session context
 
 ## 常见问题
 

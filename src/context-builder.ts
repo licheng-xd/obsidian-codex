@@ -7,10 +7,11 @@ import {
   isNotePathExplicitlyAttached,
   type ComposerAttachment
 } from "./composer-attachments";
+import { buildSystemPrompt, type MainAgentPromptContext } from "./prompt";
 
-export interface ResolvedPersistentContextItem extends PersistentContextItem {
+export type ResolvedPersistentContextItem = PersistentContextItem & {
   readonly content?: string;
-}
+};
 
 export interface ContextInput {
   userInput: string;
@@ -20,6 +21,7 @@ export interface ContextInput {
   persistentContextItems?: ResolvedPersistentContextItem[];
   attachments?: ComposerAttachment[];
   saveTargetPlan?: VaultSaveTargetPlan;
+  systemPromptContext?: MainAgentPromptContext;
 }
 
 export const NOTE_CHAR_LIMIT = 4000;
@@ -153,7 +155,14 @@ function buildSaveGuidance(plan: VaultSaveTargetPlan): string {
 }
 
 export function buildContextPayload(input: ContextInput): string {
-  const sections: string[] = [`User request:\n${input.userInput}`];
+  const sections: string[] = [];
+
+  if (input.systemPromptContext) {
+    sections.push(buildSystemPrompt(input.systemPromptContext));
+    sections.push("---");
+  }
+
+  sections.push(`User request:\n${input.userInput}`);
 
   if (input.selectionText) {
     sections.push(`Selected text:\n${input.selectionText}`);

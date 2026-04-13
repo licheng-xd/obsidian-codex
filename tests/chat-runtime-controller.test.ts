@@ -85,6 +85,7 @@ function createControllerHarness() {
     updateContextUsage: vi.fn(),
     cleanupSentComposerDraft: vi.fn(),
     saveSessionHistory: vi.fn(async () => {}),
+    saveDraftPersistentContext: vi.fn(async () => {}),
     updateContextSummary: vi.fn(async () => {}),
     showNotice: vi.fn()
   };
@@ -175,5 +176,25 @@ describe("chat runtime controller", () => {
         ]
       })
     );
+  });
+
+  it("persists draft persistent context even before the first message creates a thread", async () => {
+    const harness = createControllerHarness();
+    harness.state.persistentContextItems = [
+      {
+        kind: "vault-file",
+        path: "notes/draft.md"
+      }
+    ];
+
+    await harness.controller.persistActiveSession();
+
+    expect(harness.deps.saveDraftPersistentContext).toHaveBeenCalledWith([
+      {
+        kind: "vault-file",
+        path: "notes/draft.md"
+      }
+    ]);
+    expect(harness.deps.saveSessionHistory).not.toHaveBeenCalled();
   });
 });

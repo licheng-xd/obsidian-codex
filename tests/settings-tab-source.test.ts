@@ -23,4 +23,21 @@ describe("settings-tab source", () => {
     expect(source).toContain('.addOption("on-request", "On request")');
     expect(source).toContain('.addOption("on-failure", "On failure")');
   });
+
+  it("documents the scope and limits of identity and custom instruction settings", () => {
+    const source = readFileSync(resolve(__dirname, "../src/settings-tab.ts"), "utf8");
+
+    expect(source).toContain("Only affects future chat turns");
+    expect(source).toContain("Appended to the main chat system prompt");
+    expect(source).toContain("Does not replace @-attached files, pinned context, or active note context");
+  });
+
+  it("documents the external context allowlist as an explicit security boundary", () => {
+    const source = readFileSync(resolve(__dirname, "../src/settings-tab.ts"), "utf8");
+
+    expect(source).toContain('.setName("Enable external contexts")');
+    expect(source).toContain('.setName("Allowed external roots")');
+    expect(source).toContain("Only absolute directories are accepted");
+    expect(source).toContain("Files still need to be added explicitly from the status bar");
+  });
 });

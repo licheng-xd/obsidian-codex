@@ -256,4 +256,39 @@ describe("chat-session", () => {
       }
     ]);
   });
+
+  it("keeps external files only when they are under allowed external roots", () => {
+    const session = sanitizePersistedChatSession(
+      {
+        threadId: "thread-external-context",
+        updatedAt: 10,
+        entries: [{ type: "user", text: "context" }],
+        contextUsage: {
+          threadCharsUsedEstimate: 0,
+          sdkInputTokens: null,
+          sdkCachedInputTokens: null,
+          sdkOutputTokens: null
+        },
+        persistentContextItems: [
+          {
+            kind: "external-file",
+            path: "/Users/demo/projects/specs/plan.md"
+          },
+          {
+            kind: "external-file",
+            path: "/Users/demo/private/secret.md"
+          }
+        ]
+      },
+      ["/Users/demo/projects"]
+    );
+
+    expect(session).not.toBeNull();
+    expect(session?.persistentContextItems).toEqual([
+      {
+        kind: "external-file",
+        path: "/Users/demo/projects/specs/plan.md"
+      }
+    ]);
+  });
 });

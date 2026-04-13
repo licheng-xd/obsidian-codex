@@ -1,5 +1,8 @@
 import { Notice, Plugin } from "obsidian";
-import type { PersistedChatSession } from "./chat-session";
+import type {
+  PersistedChatSession,
+  PersistentContextItem
+} from "./chat-session";
 import { ChatView, CODEX_CHAT_VIEW_TYPE } from "./chat-view";
 import { CODEX_ICON } from "./codex-icon";
 import { CodexService, probeCodexCli } from "./codex-service";
@@ -14,6 +17,7 @@ export default class ObsidianCodexPlugin extends Plugin {
   codexService!: CodexService;
   recentSessions: PersistedChatSession[] = [];
   activeSessionId: string | null = null;
+  draftPersistentContextItems: PersistentContextItem[] = [];
 
   async onload(): Promise<void> {
     await this.loadSettings();
@@ -119,6 +123,7 @@ export default class ObsidianCodexPlugin extends Plugin {
     this.settings = persisted.settings;
     this.recentSessions = [...persisted.recentSessions];
     this.activeSessionId = persisted.activeSessionId;
+    this.draftPersistentContextItems = [...persisted.draftPersistentContextItems];
   }
 
   async saveSettings(): Promise<void> {
@@ -131,12 +136,25 @@ export default class ObsidianCodexPlugin extends Plugin {
   ): Promise<void> {
     this.recentSessions = [...recentSessions];
     this.activeSessionId = activeSessionId;
+    this.draftPersistentContextItems = [];
+    await this.savePluginData();
+  }
+
+  async saveDraftPersistentContext(
+    draftPersistentContextItems: ReadonlyArray<PersistentContextItem>
+  ): Promise<void> {
+    this.draftPersistentContextItems = [...draftPersistentContextItems];
     await this.savePluginData();
   }
 
   async setActiveSession(activeSessionId: string | null): Promise<void> {
     this.activeSessionId = activeSessionId;
     await this.savePluginData();
+  }
+
+  getActiveChatView(): ChatView | null {
+    const leaf = this.app.workspace.getLeavesOfType(CODEX_CHAT_VIEW_TYPE)[0];
+    return leaf?.view instanceof ChatView ? leaf.view : null;
   }
 
   private async activateChatView(): Promise<void> {
@@ -162,6 +180,13 @@ export default class ObsidianCodexPlugin extends Plugin {
   }
 
   private async savePluginData(): Promise<void> {
-    await this.saveData(writePersistedPluginData(this.settings, this.recentSessions, this.activeSessionId));
+    await this.saveData(
+      writePersistedPluginData(
+        this.settings,
+        this.recentSessions,
+        this.activeSessionId,
+        this.draftPersistentContextItems
+      )
+    );
   }
 }

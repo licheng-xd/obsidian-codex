@@ -129,6 +129,9 @@ interface ChatRuntimeControllerDependencies {
     recentSessions: ReadonlyArray<PersistedChatSession>,
     activeSessionId: string | null
   ) => Promise<void>;
+  saveDraftPersistentContext: (
+    draftPersistentContextItems: ReadonlyArray<PersistentContextItem>
+  ) => Promise<void>;
   updateContextSummary: () => Promise<void>;
   showNotice: (message: string, timeout?: number) => void;
 }
@@ -173,7 +176,12 @@ async function persistActiveSession(
   deps: ChatRuntimeControllerDependencies
 ): Promise<void> {
   const state = deps.readState();
-  if (!state.activeThreadId || state.sessionEntries.length === 0) {
+  if (!state.activeThreadId) {
+    await deps.saveDraftPersistentContext(state.persistentContextItems);
+    return;
+  }
+
+  if (state.sessionEntries.length === 0) {
     return;
   }
 
@@ -195,6 +203,7 @@ async function persistActiveSession(
   applyWorkbenchState(deps, nextWorkbenchState);
   deps.renderHistorySessionList();
   const nextState = deps.readState();
+  await deps.saveDraftPersistentContext([]);
   await deps.saveSessionHistory(nextState.recentSessions, nextState.activeSessionId);
 }
 

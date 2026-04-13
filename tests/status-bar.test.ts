@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { MODEL_OPTIONS, type ContextUsage } from "../src/types";
 import {
+  formatEstimatedContextMeterLabel,
+  formatEstimatedContextMeterTitle,
   formatExecutionStateLabel,
   formatContextWindowTitle,
   formatContextWindowUsage,
   formatLastTurnUsage,
+  getEstimatedContextMeterPercentage,
   getModelContextWindow,
   getModelSelectLabel,
   getReasoningEffortLabel
@@ -58,6 +61,44 @@ describe("status-bar helpers", () => {
         })
       )
     ).toBe("Local 0 / 4k");
+  });
+
+  it("formats an explicitly estimated context meter from local history estimates", () => {
+    expect(
+      formatEstimatedContextMeterLabel(
+        createUsage({
+          threadCharsUsedEstimate: 10_000,
+          threadCharsLimitEstimate: 40_000
+        })
+      )
+    ).toBe("Est. 25%");
+    expect(
+      getEstimatedContextMeterPercentage(
+        createUsage({
+          threadCharsUsedEstimate: 120_000,
+          threadCharsLimitEstimate: 40_000
+        })
+      )
+    ).toBe(100);
+  });
+
+  it("explains that the context meter is an estimate rather than sdk authority", () => {
+    expect(
+      formatEstimatedContextMeterTitle(
+        createUsage({
+          threadCharsUsedEstimate: 12034,
+          threadCharsLimitEstimate: 40000
+        })
+      )
+    ).toContain("Estimated session context");
+    expect(
+      formatEstimatedContextMeterTitle(
+        createUsage({
+          threadCharsUsedEstimate: 12034,
+          threadCharsLimitEstimate: 40000
+        })
+      )
+    ).toContain("Not the SDK authoritative thread window");
   });
 
   it("uses the same local-only display when the model window is unknown", () => {
